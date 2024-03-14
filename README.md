@@ -1,7 +1,7 @@
 # Custom Orders for Freqtrade
 
 
-![Logo](logo.png)
+![Logo](logo.jpeg)
 
 This project provides an extension to [Freqtrade](https://www.freqtrade.io/), a free and open-source crypto trading bot written in Python. It enables the creation and execution of custom order strategies that go beyond the default stop loss, custom stop loss, and strategy exit functionalities offered by Freqtrade. This includes more advanced order types like trailing stop losses and take-profit conditions, which are particularly useful for day trading on exchanges with limited order types (e.g., Kraken only allows one limit sell order, no "one cancels the other" orders, etc.).
 
