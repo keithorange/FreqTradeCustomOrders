@@ -1,0 +1,83 @@
+
+{
+    "timeframe": "1m",
+    "max_open_trades": 1000,
+    "stake_currency": "USD",
+    "stake_amount": "unlimited",
+    "tradable_balance_ratio": 0.99,
+    "fiat_display_currency": "USD",
+    "dry_run": true,
+    "dry_run_wallet": 100000,
+    "cancel_open_orders_on_exit": false,
+    "trading_mode": "spot",
+    "margin_mode": "",
+    "unfilledtimeout": {
+        "entry": 10,
+        "exit": 10,
+        "exit_timeout_count": 0,
+        "unit": "minutes"
+    },
+    "entry_pricing": {
+        "price_side": "other",
+        "use_order_book": true,
+        "order_book_top": 1,
+        "price_last_balance": 0.0,
+        "check_depth_of_market": {
+            "enabled": false,
+            "bids_to_ask_delta": 1
+        }
+    },
+    "exit_pricing":{
+        "price_side": "other",
+        "use_order_book": true,
+        "order_book_top": 1
+    },
+    "download_trades": true,
+    "pairlists": [
+        {"method": "StaticPairList"}
+    ],
+    "order_types": {
+        "entry": "market",
+        "exit": "market",
+        "emergency_exit": "market",
+        "force_entry": "market",
+        "force_exit": "market",
+        "stoploss": "market",
+        "stoploss_on_exchange": false,
+        "stoploss_on_exchange_interval": 60
+    },
+    "exchange": {
+        "name": "kraken",
+        "key": "",
+        "secret": "",
+        "ccxt_config": {},
+        "ccxt_async_config": {},
+
+        "pair_whitelist": ["BTC/USD", "ETH/USD", "AVAX/USD", "SHIB/USD", "FET/USD", "OCEAN/USD"],
+        "pair_blacklist": []
+
+    },
+    "telegram": {
+        "enabled": false,
+        "token": "",
+        "chat_id": ""
+    },
+    "api_server": {
+        "enabled": true,
+        "listen_ip_address": "127.0.0.1",
+        "listen_port": 6969,
+        "verbosity": "error",
+        "enable_openapi": false,
+        "jwt_secret_key": "bd5d32f2bb5db78df7cc2cdf22a122502c57c3f935f066ed0a73024d23a69a0a",
+        "ws_token": "gqqguX9D3Jym-FfTvqmOra-oRALyenQxiw",
+        "CORS_origins": [],
+        "username": "freqtrader",
+        "password": "password"
+    },
+    "bot_name": "freqtrade",
+    "initial_state": "running",
+    "force_entry_enable": true,
+    "internals": {
+        "process_throttle_secs": 5
+    }
+}
