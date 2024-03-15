@@ -1,0 +1,9 @@
+{
+    "exchange": {
+        "name": "kraken",
+        "pair_whitelist": [
+            "BTC/USD"
+        ],
+        "pair_blacklist": []
+    }
+}
