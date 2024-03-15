@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from pandas import DataFrame
-from custom_order_form_handler import OrderStatus, StrategyDataHandler
+from custom_orders.custom_order_form_handler import OrderStatus, StrategyDataHandler
 from freqtrade.strategy.interface import IStrategy
 
 

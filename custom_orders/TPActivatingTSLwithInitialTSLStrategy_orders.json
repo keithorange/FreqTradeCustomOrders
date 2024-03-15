@@ -1,1 +1,12 @@
-{}
+{
+    "BADGER/USD": {
+        "data": {
+            "profit_activating_tsl": 0.1,
+            "tight_trailing_stop_loss": 0.005,
+            "loose_trailing_stop_loss": 0.03,
+            "take_profit_hit": true,
+            "stake_amount": 200.0
+        },
+        "status": "HOLDING"
+    }
+}

@@ -2,6 +2,9 @@
     "exchange": {
         "name": "kraken",
         "pair_whitelist": [
+            "DOGE/USD",
+            "BADGER/USD",
+            "ETH/USD",
             "BTC/USD"
         ],
         "pair_blacklist": []

@@ -23,7 +23,7 @@ class OrderStatus(Enum):
 
 
 class StrategyDataHandler:
-    def __init__(self, strategy_name: str, base_dir='custom_orders'):
+    def __init__(self, strategy_name: str, base_dir='.'):
         self.strategy_name = strategy_name
         # Use an absolute path for base_dir
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,7 +39,7 @@ class StrategyDataHandler:
 
     def read_strategy_data(self) -> Dict[str, Any]:
         file_path = self.get_order_file_path()
-        print(f"file_path {file_path}")
+        #print(f"file_path {file_path}")
         if os.path.exists(file_path):
             with open(file_path, 'r') as file:
                 f = json.load(file)

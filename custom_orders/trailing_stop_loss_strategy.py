@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime
 from typing import Optional
-from file_loading_strategy import FileLoadingStrategy
+from custom_orders.file_loading_strategy import FileLoadingStrategy
 from freqtrade.strategy.interface import IStrategy
 from freqtrade.persistence import Trade
 # additional imports required
@@ -13,8 +13,8 @@ from typing import Any, Optional
 
 from pandas import DataFrame
 from typing import Dict
-from custom_order_form_handler import OrderStatus
-from file_loading_strategy import FileLoadingStrategy
+from custom_orders.custom_order_form_handler import OrderStatus
+from custom_orders.file_loading_strategy import FileLoadingStrategy
 from freqtrade.strategy.interface import IStrategy
 from freqtrade.strategy.strategy_helper import stoploss_from_open
 from freqtrade.persistence import Trade

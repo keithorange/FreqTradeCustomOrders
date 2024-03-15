@@ -49,24 +49,32 @@ def select_strategy():
     return strategy_name
 
 
+def select_pair(pairs_list):
+    """Present the user with a list of pairs to select from or allow direct input."""
+    clear_screen()
+    print("Available Pairs:")
+    for i, pair in enumerate(pairs_list, start=1):
+        print(f"{i}: {pair}")
+    print("\nNote: If the desired pair is not found, you can directly input it.")
+    print("If the desired pair is not listed, ensure you add it into the pair list from the main menu.")
+    pair_choice = input(
+        "\nSelect a pair number or directly input a pair (ex. BTC/USD) and press Enter to cancel: ")
+
+    if pair_choice.isdigit() and 1 <= int(pair_choice) <= len(pairs_list):
+        return pairs_list[int(pair_choice) - 1]
+    elif '/' in pair_choice:
+        return pair_choice.upper()
+    else:
+        print("Invalid selection or cancellation requested.")
+        return None
+
+
+
 def load_pair_list():
     """Load the list of pairs from the pair_list.txt file."""
     with open(pair_list_path, 'r') as file:
         return [line.strip() for line in file.readlines() if line.strip()]
 
-
-def select_pair(pairs_list):
-    """Present the user with a list of pairs to select from."""
-    clear_screen()
-    print("Available Pairs:")
-    for i, pair in enumerate(pairs_list, start=1):
-        print(f"{i}: {pair}")
-    print("\nNote: If the desired pair is not found, ensure you add it into the pair list from the main menu.")
-    pair_choice = input("\nSelect a pair number or press Enter to cancel: ")
-    if not pair_choice.isdigit() or int(pair_choice) < 1 or int(pair_choice) > len(pairs_list):
-        print("Invalid selection or cancellation requested.")
-        return None
-    return pairs_list[int(pair_choice) - 1]
 
 
 def edit_existing_orders():
@@ -80,12 +88,10 @@ def edit_existing_orders():
 
     if not strategy_data:
         print("No existing orders to edit.")
-        input("\nPress Enter to return to the main menu...")
         return
 
     pair_to_edit = select_pair(list(strategy_data.keys()))
     if pair_to_edit is None:
-        input("\nPress Enter to return to the main menu...")
         return
 
     data_to_edit = strategy_data[pair_to_edit]
@@ -109,47 +115,55 @@ def edit_existing_orders():
     handler.update_strategy_data(
         pair_to_edit, data_to_edit['data'], OrderStatus[data_to_edit['status']])
     print(f"✅ Order for {pair_to_edit} updated successfully!")
-    input("\nPress Enter to return to the main menu...")
 
 
-    input("\nPress Enter to return to the main menu...")
+
 
 
 def edit_pair_list():
     clear_screen()
-    pairs = set()
-    if os.path.exists(pair_list_path):
-        with open(pair_list_path, 'r') as file:
-            pairs = set(line.strip().upper() for line in file if line.strip())
+    pairs = load_pair_list()
 
     print("Current Pair List:")
-    for pair in sorted(pairs):
-        print(pair)
+    for i, pair in enumerate(pairs, start=1):
+        print(f"{i}: {pair}")
 
     choice = input("\nDo you want to add (a) or remove (r) a pair? (a/r): ")
     if choice.lower() == 'a':
-        edit_pair = input("Enter the new pair (ex. BTC/USD): ").strip().upper()
-        pairs.add(edit_pair)
+        new_pair = input("Enter the new pair (ex. BTC/USD): ").strip().upper()
+        if new_pair not in pairs:
+            pairs.append(new_pair)
+            print(f"{new_pair} added to the pair list.")
+        else:
+            print(f"{new_pair} is already in the pair list.")
     elif choice.lower() == 'r':
-        edit_pair = input(
-            "Enter the pair to remove (ex. BTC/USD): ").strip().upper()
-        pairs.discard(edit_pair)
+        remove_choice = input(
+            "Enter the pair to remove or its index (ex. BTC/USD or 1): ")
+        if remove_choice.isdigit() and 1 <= int(remove_choice) <= len(pairs):
+            removed_pair = pairs.pop(int(remove_choice) - 1)
+            print(f"{removed_pair} removed from the pair list.")
+        elif remove_choice.upper() in pairs:
+            pairs.remove(remove_choice.upper())
+            print(f"{remove_choice.upper()} removed from the pair list.")
+        else:
+            print("Pair not found or invalid index.")
     else:
-        input("No valid choice made. Press Enter to return to the main menu...")
+        print("Invalid choice.")
         return
 
     with open(pair_list_path, 'w') as file:
-        file.write('\n'.join(sorted(pairs)))
+        for pair in pairs:
+            file.write(f"{pair}\n")
 
-    print(f"✅ Order for {edit_pair} updated successfully!")
+    print("\nPair list updated.")
 
-    input("Press Enter to return to the main menu...")
+
 
 
 def kill_all_freqtrade():
     clear_screen()
     try:
-        command = ['./kill_freqtrade.sh']
+        command = ['./user_data/strategies/custom_orders/kill_freqtrade.sh']
         process = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate()
@@ -163,7 +177,20 @@ def kill_all_freqtrade():
     except Exception as e:
         print(
             f"An error occurred while attempting to kill Freqtrade processes: {e}")
-    input("\nPress Enter to return to the main menu...")
+
+
+def run_script_in_tmux(script_path, strategy_name):
+    tmux_session_name = "freqtrade_session"
+    # Create a new tmux session
+    subprocess.run(["tmux", "new-session", "-d", "-s", tmux_session_name])
+    # Send the command to run the script in the tmux session
+    subprocess.run(["tmux", "send-keys", "-t", tmux_session_name,
+                   f"bash {script_path} {strategy_name}", "C-m"])
+    print(f"Script is running in a detached tmux session named '{tmux_session_name}'.")
+    print(
+        f"To attach to the tmux session, run: 'tmux attach-session -t {tmux_session_name}'")
+    print("To detach and leave the script running, press 'Ctrl+B' and then 'D'.")
+    print("To terminate the script and close the tmux session, attach to it and then type 'exit'.")
 
 
 def launch_freqtrade():
@@ -171,19 +198,17 @@ def launch_freqtrade():
     if not strategy_name:
         return
 
-    command = ['./run_custom_order_freqtrade.sh', strategy_name]
-    process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-
-    if process.returncode == 0:
+    try:
+        run_script_in_tmux(
+                "./user_data/strategies/custom_orders/run_custom_order_freqtrade.sh", strategy_name)
+        
         print(f"""✅ Freqtrade launched successfully with strategy: {
-              strategy_name} 🤖\nProcess ID: {process.pid}""")
+              strategy_name} 🤖""")
+        
 
-    else:
-        print(f"❌ Failed to launch Freqtrade. Error:\n{stderr.decode()}")
+    except Exception as e:
+        print(f"❌ Failed to launch Freqtrade. Error:\n{e}")
 
-    input("\nPress Enter to return to the main menu...")
 
 
 def main_menu():
@@ -209,7 +234,6 @@ def place_new_order():
     pair = select_pair(pairs_list)
     if not pair:
         print("Pair selection cancelled.")
-        input("\nPress Enter to return to the main menu...")
         return
 
     # Depending on the selected strategy, instantiate the strategy class
@@ -230,7 +254,6 @@ def place_new_order():
     except Exception as e:
         print(f"Error: {e}\nOrder not saved. Please try again.")
 
-    input("\nPress Enter to return to the main menu...")
 
 def run():
     while True:
@@ -250,11 +273,9 @@ def run():
             break
         else:
             print("Invalid choice, please try again.")
-            input("Press Enter to continue...")
 
         # Moved the input here to avoid pressing Enter twice
-        if choice not in ["2", "3", "4", "5"]:
-            input("Press Enter to continue...")
+        input("\n\nPress Enter to continue...")
 
 
 
