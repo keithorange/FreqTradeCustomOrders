@@ -44,7 +44,8 @@
         "force_exit": "market",
         "stoploss": "market",
         "stoploss_on_exchange": true, 
-        "stoploss_on_exchange_interval": 10
+        "stoploss_on_exchange_interval": 21,
+        "stoploss_on_exchange_limit_ratio": 0.999
     },
      "exchange": {
         "name": "kraken",
@@ -52,9 +53,11 @@
         "secret": "",
         "ccxt_config": {},
         "ccxt_async_config": {},
-
-        "pair_whitelist": ["BTC/USD", "ETH/USD", "AVAX/USD"],
-        "pair_blacklist": []
+        "pair_whitelist": ["BTC/USD"],
+        "pair_blacklist": [],
+        "_ft_has_params": {
+            "ohlcv_candle_limit": 30 
+        }
 
     },
     "telegram": {
