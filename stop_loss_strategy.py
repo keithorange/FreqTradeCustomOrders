@@ -80,8 +80,8 @@ class StopLossStrategy(FileLoadingStrategy):
 
         
         # Calculate stoploss relative to open price (no trailing)
-        return -max(stoploss_from_open(
-            -stop_loss_pct, current_profit, is_short=trade.is_short, leverage=trade.leverage), stop_loss_pct)
+        return stoploss_from_open(
+            -stop_loss_pct/ 100, current_profit, is_short=trade.is_short, leverage=trade.leverage)
 
     def input_strategy_data(self, pair: str):
         stop_loss_pct = float(

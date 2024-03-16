@@ -72,11 +72,11 @@ class TPActivatingTSLwithInitialTSLStrategy(FileLoadingStrategy):
                 #       stoploss_from_open(-hard_stop_loss, current_profit, is_short=trade.is_short, leverage=trade.leverage): {-loose_trailing_stop_loss}
                 #       """)
                 # at start or Negative profit, set hard stoploss as default
-                return -loose_trailing_stop_loss
+                return -loose_trailing_stop_loss / 100 # convert to ratio
         
             else: # HIT! turn on TSL
                 self.set_dfile_arg(pair, 'take_profit_hit', True)
-                return -tight_trailing_stop_loss
+                return -tight_trailing_stop_loss / 100  # convert to ratio
             
         except ValueError as e:
             print(f"Error: get_dfile_arg in custom_stoploss: {e}")

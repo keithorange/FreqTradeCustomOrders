@@ -51,7 +51,7 @@ class TrailingStopLossStrategy(FileLoadingStrategy):
             trailing_stop_loss_pct = self.get_file_arg(pair, 'trailing_stop_loss_pct')
 
             print(f"trailing_stop_loss_pct: {trailing_stop_loss_pct}")
-            return -trailing_stop_loss_pct
+            return -trailing_stop_loss_pct / 100  # convert to ratio
         except ValueError as e:
             print(f"Error: get_file_arg in custom_stoploss: {e}")
             return None
