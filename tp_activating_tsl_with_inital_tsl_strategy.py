@@ -49,7 +49,7 @@ class TPActivatingTSLwithInitialTSLStrategy(FileLoadingStrategy):
             #print(f"current_rate: {current_rate} trade :{trade}")
             # note: 1.0 == 1%
             percentage_difference = ((current_rate - trade.open_rate) / trade.open_rate) * 100
-            print(f"percentage_difference: {percentage_difference} profit_activating_tsl: {profit_activating_tsl} take_profit_hit {take_profit_hit}\n")
+            print(f"\n (stoploss) {pair} percentage_difference: {percentage_difference} profit_activating_tsl: {profit_activating_tsl} take_profit_hit {take_profit_hit}\n")
 
             # print(f"""
             #     TPActivatingTSLwithInitialTSLStrategy
@@ -62,7 +62,7 @@ class TPActivatingTSLwithInitialTSLStrategy(FileLoadingStrategy):
             #     """)
 
             # Check if the percentage difference is below the threshold to activate trailing stop loss
-            if not take_profit_hit or percentage_difference < profit_activating_tsl:
+            if not take_profit_hit and percentage_difference < profit_activating_tsl:
                 # print(f"""
                 #       current_profit: {current_profit}
                 #       profit_activating_tsl: {profit_activating_tsl}

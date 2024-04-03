@@ -83,7 +83,7 @@ class TPActivatingTSLwithSLStrategy(FileLoadingStrategy):
                 """)
 
             # Check if the percentage difference is below the threshold to activate trailing stop loss
-            if not take_profit_hit or percentage_difference < profit_activating_tsl:
+            if not take_profit_hit and percentage_difference < profit_activating_tsl:
                 print(f"""
                       current_profit: {current_profit}
                       profit_activating_tsl: {profit_activating_tsl}

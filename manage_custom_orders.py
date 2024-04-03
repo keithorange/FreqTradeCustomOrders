@@ -1,3 +1,8 @@
+from pandas import DataFrame
+from typing import Dict, Any
+from enum import Enum, auto
+from datetime import datetime
+import signal
 import subprocess
 import os
 import platform
@@ -6,6 +11,9 @@ import time
 
 # Assuming custom_order_form_handler.py is in the same directory
 from custom_order_form_handler import OrderStatus, StrategyDataHandler
+from ma_stop_loss_strategy import MAStopLossStrategy
+from ma_slope_strategy import MASlopeStrategy
+from ma_trailing_stop_strategy import MATrailingStopLossStrategy
 from stop_loss_strategy import StopLossStrategy
 from tp_activating_tsl_with_inital_tsl_strategy import TPActivatingTSLwithInitialTSLStrategy
 from tp_activating_tsl_with_sl_strategy import TPActivatingTSLwithSLStrategy
@@ -15,11 +23,11 @@ from trailing_stop_loss_strategy import TrailingStopLossStrategy
 base_dir = os.path.abspath('user_data/strategies')
 pair_list_path = os.path.abspath(os.path.join(base_dir, 'pair_list.txt'))
 
-# Initialize the StrategyDataHandler with the base_dir
-handler = StrategyDataHandler("", base_dir)
+
 
 
 def clear_screen():
+
     if platform.system() == "Windows":
         os.system('cls')
     else:
@@ -33,13 +41,21 @@ def select_strategy():
     print("2: Trailing Stop Loss")
     print("3: Take-Profit Activating TrailingStop (with Hard StopLoss)")
     print("4: Take-Profit Activating TrailingStop (with Initial TrailingStop)")
+    print("5: MASlopeStrategy")
+    print("6: MATrailingStopLossStrategy")
+    print("7: MAStopLossStrategy")
+    
     strategy_choice = input("Select a strategy number: ")
 
     strategies = {
         "1": "StopLossStrategy",
         "2": "TrailingStopLossStrategy",
         "3": "TPActivatingTSLwithSLStrategy",
-        "4": "TPActivatingTSLwithInitialTSLStrategy"
+        "4": "TPActivatingTSLwithInitialTSLStrategy",
+        "5": "MASlopeStrategy",
+        "6": "MATrailingStopLossStrategy",
+        "7": "MAStopLossStrategy",
+        
     }
 
     strategy_name = strategies.get(strategy_choice, "")
@@ -93,7 +109,7 @@ def view_or_edit_orders():
 
 def display_orders():
     clear_screen()
-    strategy_name = select_strategy()
+    global strategy_name
     if not strategy_name:
         return
 
@@ -113,7 +129,7 @@ def display_orders():
 
 def edit_existing_orders():
     """Function to edit existing orders."""
-    strategy_name = select_strategy()
+    global strategy_name
     if not strategy_name:
         return
 
@@ -142,9 +158,8 @@ def edit_existing_orders():
                 data_to_edit['data'][key] = new_value.strip().lower() in [
                     'true', '1', 't', 'y', 'yes']
             else:
-                data_to_edit['data'][key] = float(new_value)
-
-
+                data_to_edit['data'][key] = float(new_value) if new_value.replace('.', '', 1).isdigit() else new_value
+                
     # Editing 'status' part
     print(f"Current status: {data_to_edit['status']}")
     new_status = input(
@@ -198,78 +213,58 @@ def edit_pair_list():
                 else:
                     print(f"{symbol} not found in the pair list.")
 
-        with open(pair_list_path, 'w') as file:
-            for pair in sorted(pairs):
-                file.write(f"{pair}\n")
-
-        print("\nPair list updated.")
-
-
-    with open(pair_list_path, 'w') as file:
-        for pair in sorted(pairs):
-            file.write(f"{pair}\n")
-
-    print("\nPair list updated.")
+    update_pair_list(pairs)  # updated to use the helper function
+    restart_freqtrade()
 
 
 
+strategy_name = None  # Global variable to store the strategy name
 
 
-def kill_all_freqtrade():
-    clear_screen()
-    try:
-        command = ['./user_data/strategies/kill_freqtrade.sh']
-        process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-
-        if process.returncode == 0:
-            print(f"❌ Failed to launch Freqtrade. Error:\n{stderr.decode()}")
-
-        else:
-            print(f"❌ Failed to kill Freqtrade processes. Error:\n{stderr.decode()}")
-
-    except Exception as e:
-        print(
-            f"An error occurred while attempting to kill Freqtrade processes: {e}")
-
-
-def run_script_in_tmux(script_path, strategy_name):
-    tmux_session_name = "freqtrade_session"
-    # Create a new tmux session
-    subprocess.run(["tmux", "new-session", "-d", "-s", tmux_session_name])
-    # Send the command to run the script in the tmux session
-    subprocess.run(["tmux", "send-keys", "-t", tmux_session_name,
-                   f"bash {script_path} {strategy_name}", "C-m"])
-    print(f"Script is running in a detached tmux session named '{tmux_session_name}'.")
-    print(
-        f"To attach to the tmux session, run: 'tmux attach-session -t {tmux_session_name}'")
-    print("To detach and leave the script running, press 'Ctrl+B' and then 'D'.")
-    print("To terminate the script and close the tmux session, attach to it and then type 'exit'.")
+strategy_name = None  # Global variable to store the strategy name
 
 
 def launch_freqtrade():
-    strategy_name = select_strategy()
-    if not strategy_name:
-        return
+    global strategy_name
 
+    # Ensure the logs directory exists
+    logs_dir = "CUSTOM_ORDERS_LOGS"
+    os.makedirs(logs_dir, exist_ok=True)
+
+    # Construct log file names based on strategy and current time
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_files = {
+        "stdout": os.path.join(logs_dir, f"{strategy_name}_stdout_{timestamp}.log"),
+        "stderr": os.path.join(logs_dir, f"{strategy_name}_stderr_{timestamp}.log")
+    }
+
+    # Prepare the command and launch Freqtrade
+    command = f"bash ./user_data/strategies/run_custom_order_freqtrade.sh {strategy_name}"
+    subprocess.Popen(command, shell=True, stdout=open(
+        log_files["stdout"], "w"), stderr=open(log_files["stderr"], "w"))
+
+    print(f"Freqtrade launched for '{strategy_name}'. Check logs in {logs_dir} for more details.\n")
+
+
+def kill_freqtrade():
     try:
-        run_script_in_tmux(
-                "./user_data/strategies/run_custom_order_freqtrade.sh", strategy_name)
-        
-        print(f"""✅ Freqtrade launched successfully with strategy: {
-              strategy_name} 🤖""")
-        
+        # Attempt to send SIGTERM to allow graceful shutdown
+        subprocess.run(f"pkill -f '{strategy_name}'", shell=True)
+        #print(f"Sent SIGTERM to Freqtrade processes matching '{strategy_name}'. Waiting for shutdown...")
 
+        # Wait a bit to allow the process to terminate gracefully
+        time.sleep(3)
+
+        # Forcefully terminate any remaining processes
+        subprocess.run(f"pkill -9 -f '{strategy_name}'", shell=True)
+        #print(f"Forcefully terminated any remaining Freqtrade processes matching '{strategy_name}'.")
     except Exception as e:
-        print(f"❌ Failed to launch Freqtrade. Error:\n{e}")
-
+        print(f"An error occurred while terminating Freqtrade processes: {e}")
 
 
 
 def place_new_order():
-    """Function to place a new order."""
-    strategy_name = select_strategy()
+    global strategy_name
     if not strategy_name:
         return
 
@@ -278,12 +273,17 @@ def place_new_order():
     if not pair:
         print("Pair selection cancelled.")
         return
+    
+# Check if the pair is in the pair list, if not, add it
     if pair not in pairs_list:
         print(f"{pair} is not in the pair list. Adding it now...")
         pairs_list.append(pair)
-        with open(pair_list_path, 'w') as file:
-            for p in pairs_list:
-                file.write(f"{p}\n")
+        update_pair_list(pairs_list)  # updated to use the helper functio
+        restart_freqtrade()
+
+
+    # Rest of the code for placing a new order...
+
 
 
     # Depending on the selected strategy, instantiate the strategy class
@@ -291,7 +291,10 @@ def place_new_order():
         "StopLossStrategy": StopLossStrategy,
         "TrailingStopLossStrategy": TrailingStopLossStrategy,
         "TPActivatingTSLwithSLStrategy": TPActivatingTSLwithSLStrategy,
-        "TPActivatingTSLwithInitialTSLStrategy": TPActivatingTSLwithInitialTSLStrategy
+        "TPActivatingTSLwithInitialTSLStrategy": TPActivatingTSLwithInitialTSLStrategy,
+        "MASlopeStrategy": MASlopeStrategy,
+        "MATrailingStopLossStrategy": MATrailingStopLossStrategy,
+        "MAStopLossStrategy": MAStopLossStrategy
     }[strategy_name]
 
     # Instantiate and set up the strategy
@@ -299,66 +302,133 @@ def place_new_order():
     strategy = strategy_class(dict())
     strategy.input_strategy_data(pair)
     
-    all_order_data = strategy.order_handler.read_strategy_data()
+    global strategy_data_handler
+    all_order_data = strategy_data_handler.read_strategy_data()
     order_data = all_order_data[pair]
-    #print(f"order_data {order_data}")
+    print(f"Placing order: {order_data}")
 
     time.sleep(3)
     clear_screen()
 
 
+def filter_orders_by_status(strategy_data, statuses):
+    """Filter orders by given statuses."""
+    return [pair for pair, data in strategy_data.items() if OrderStatus(data['status']) in statuses]
+
+
+
+def update_pair_list(pairs):
+    """Update the pair list with given pairs and sync it with current orders."""
+    
+    current_pairs = load_pair_list()
+    with open(pair_list_path, 'w') as file:
+        for pair in pairs:
+            file.write(f"{pair}\n")
+    print("Pair list updated.")
+    
+    # if current_pairs != pairs:
+    #     print("Restarting Freqtrade to sync pair list with orders.")
+    #     restart_freqtrade()
+
+
+def restart_freqtrade():
+    """Restart freqtrade by killing and then launching it."""
+    kill_freqtrade()
+    launch_freqtrade()
+    print("Freqtrade restarted.")
+
+
+def sync_pairlist_to_orders():
+    global strategy_name
+    if not strategy_name:
+        return
+    
+    global strategy_data_handler
+
+
+    strategy_data = strategy_data_handler.read_strategy_data()
+
+    valid_pairs = filter_orders_by_status(
+        strategy_data, [OrderStatus.PENDING, OrderStatus.HOLDING])
+
+    update_pair_list(valid_pairs)
+    restart_freqtrade()
+
+
 def remove_old_data():
     clear_screen()
-    # Load existing orders and pair list
     pairs_list = load_pair_list()
-    # Assuming this method exists and reads all orders across strategies
-    all_orders = handler.read_all_strategy_data()
+
+    # Read the orders for the current strategy
+    orders = strategy_data_handler.read_strategy_data()
+
+    print(f"all_orders for {strategy_name}: {orders}")
 
     # Step 1: Remove exited orders
     if input("Remove exited orders? (y/n): ").lower() == 'y':
-        for strategy, orders in all_orders.items():
-            all_orders[strategy] = {
-                pair: data for pair, data in orders.items() if data['status'] != 'EXITED'}
+        orders = {
+            pair: data for pair, data in orders.items()
+            if OrderStatus(data['status']) != OrderStatus.EXITED
+        }
 
-    # Step 2: Remove orders not in pair list
+    # Step 2: Ensure all orders are in pair list
     if input("Remove orders not in pair list? (y/n): ").lower() == 'y':
-        for strategy, orders in all_orders.items():
-            all_orders[strategy] = {pair: data for pair,
-                                    data in orders.items() if pair in pairs_list}
+        orders = {
+            pair: data for pair, data in orders.items()
+            if pair in pairs_list
+        }
 
-    # Step 3: Remove pairs without orders
-    if input("Remove pairs without orders? (y/n): ").lower() == 'y':
-        pairs_with_orders = set(
-            pair for orders in all_orders.values() for pair in orders)
-        pairs_list = [pair for pair in pairs_list if pair in pairs_with_orders]
+    # Step 3: Keep pairs with PENDING or HOLDING orders
+    if input("Keep only pairs with PENDING or HOLDING orders? (y/n): ").lower() == 'y':
+        orders = {
+            pair: data for pair, data in orders.items()
+            if OrderStatus(data['status']) in [OrderStatus.PENDING, OrderStatus.HOLDING]
+        }
 
-    # Save updates
-    # Assuming this method exists and writes all orders across strategies
-    handler.write_all_strategy_data(all_orders)
-    with open(pair_list_path, 'w') as file:
-        for pair in pairs_list:
-            file.write(f"{pair}\n")
+    # Update the pair list to reflect the changes
+    updated_pairs_list = list(orders.keys())
+    update_pair_list(updated_pairs_list)
+    restart_freqtrade()
 
-    print("Data cleanup complete.")
+    # Save the updated orders
+    strategy_data_handler.save_strategy_data(orders)
 
+
+def main_menu():
+    clear_screen()
+    print("===== Custom Orders Management System =====")
+    print("1: Place New Order 💰")
+    print("2: Edit (or View) Existing Orders 🔧")
+    print("3: Edit (or View) Pair List 🔧")
+    print("4: Launch Freqtrade 🤖")
+    print("5: Kill All Freqtrade 🤖")
+    print("6: Remove Old Data 🔨")
+    print(
+        "\n******* Always RESET FreqTrade AFTER adding NEW PAIRS (Ctrl - C) *******\n")
+    print("7: Exit")
+
+    return input("Enter your choice: ")
+
+
+
+strategy = None
+
+# Initialize the StrategyDataHandler with the base_dir
+strategy_data_handler = None
 
 def run():
-        
-
-    def main_menu():
-        clear_screen()
-        print("===== Custom Orders Management System =====")
-        print("1: Place New Order 💰")
-        print("2: Edit (or View) Existing Orders 🔧")
-        print("3: Edit (or View) Pair List 🔧")
-        print("4: Launch Freqtrade 🤖")
-        print("5: Kill All Freqtrade 🤖")
-        print("6: Remove Old Data 🔨")
-        print("\n******* Always RESET FreqTrade AFTER adding NEW PAIRS *******\n")
-        print("7: Exit")
+    global strategy_name
+    strategy_name = select_strategy()
+    
+    global strategy_data_handler 
+    strategy_data_handler = StrategyDataHandler(strategy_name, base_dir)
+    
+    # Sync pairlist to orders at the start
+    sync_pairlist_to_orders()  # will auto launch freqtrade with the selected strategy
 
 
-        return input("Enter your choice: ")
+    time.sleep(1)
+    
     while True:
         choice = main_menu()
         if choice == "1":
@@ -370,7 +440,7 @@ def run():
         elif choice == "4":
             launch_freqtrade()
         elif choice == "5":  # Handling the new option
-            kill_all_freqtrade()
+            kill_freqtrade()
         elif choice == "6":
             remove_old_data()
         elif choice == "7":
@@ -383,6 +453,8 @@ def run():
         # Moved the input here to avoid pressing Enter twice
         input("\n\nPress Enter to continue...")
 
+    print("Exiting the Custom Orders Management System.")
+    print("LEAVING FreqTrade RUNNING! To stop it, use the 'Kill All Freqtrade' option, or restart the script!")
 
 
 if __name__ == "__main__":
