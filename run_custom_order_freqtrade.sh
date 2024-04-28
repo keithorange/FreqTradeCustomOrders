@@ -6,7 +6,7 @@ STRATEGY_NAME=$1
 cd user_data/strategies/
 
 # Run the Python script to generate PAIR_LIST.json
-python generate_pair_list_config.py
+python3 generate_pair_list_config.py
 
 # Navigate back to the freqtrade root directory
 cd ../../

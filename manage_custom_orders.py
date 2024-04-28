@@ -19,11 +19,8 @@ from tp_activating_tsl_with_inital_tsl_strategy import TPActivatingTSLwithInitia
 from tp_activating_tsl_with_sl_strategy import TPActivatingTSLwithSLStrategy
 from trailing_stop_loss_strategy import TrailingStopLossStrategy
 
-# Global variables for paths
-base_dir = os.path.abspath('user_data/strategies')
-pair_list_path = os.path.abspath(os.path.join(base_dir, 'pair_list.txt'))
 
-
+import argparse
 
 
 def clear_screen():
@@ -221,45 +218,54 @@ def edit_pair_list():
 strategy_name = None  # Global variable to store the strategy name
 
 
-strategy_name = None  # Global variable to store the strategy name
+def restart_freqtrade():
+    """Restart freqtrade by killing and then launching it, if enabled."""
+    if args.launch_freqtrade:
+        kill_freqtrade()
+        launch_freqtrade()
+        print("Freqtrade restarted.")
+    else:
+        print("Freqtrade process management is disabled.")
 
 
 def launch_freqtrade():
-    global strategy_name
-
-    # Ensure the logs directory exists
-    logs_dir = "CUSTOM_ORDERS_LOGS"
-    os.makedirs(logs_dir, exist_ok=True)
-
-    # Construct log file names based on strategy and current time
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_files = {
-        "stdout": os.path.join(logs_dir, f"{strategy_name}_stdout_{timestamp}.log"),
-        "stderr": os.path.join(logs_dir, f"{strategy_name}_stderr_{timestamp}.log")
-    }
-
-    # Prepare the command and launch Freqtrade
-    command = f"bash ./user_data/strategies/run_custom_order_freqtrade.sh {strategy_name}"
-    subprocess.Popen(command, shell=True, stdout=open(
-        log_files["stdout"], "w"), stderr=open(log_files["stderr"], "w"))
-
-    print(f"Freqtrade launched for '{strategy_name}'. Check logs in {logs_dir} for more details.\n")
+    """Launch Freqtrade only if enabled."""
+    if args.launch_freqtrade:
+        global strategy_name
+        # Ensure the logs directory exists
+        logs_dir = "CUSTOM_ORDERS_LOGS"
+        os.makedirs(logs_dir, exist_ok=True)
+        # Construct log file names based on strategy and current time
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_files = {
+            "stdout": os.path.join(logs_dir, f"{strategy_name}_stdout_{timestamp}.log"),
+            "stderr": os.path.join(logs_dir, f"{strategy_name}_stderr_{timestamp}.log")
+        }
+        # Prepare the command and launch Freqtrade
+        command = f"bash ./user_data/strategies/run_custom_order_freqtrade.sh {strategy_name}"
+        subprocess.Popen(command, shell=True, stdout=open(
+            log_files["stdout"], "w"), stderr=open(log_files["stderr"], "w"))
+        print(f"Freqtrade launched for '{strategy_name}'. Check logs in {logs_dir} for more details.\n")
+    else:
+        print("Launching Freqtrade is disabled.")
 
 
 def kill_freqtrade():
-    try:
-        # Attempt to send SIGTERM to allow graceful shutdown
-        subprocess.run(f"pkill -f '{strategy_name}'", shell=True)
-        #print(f"Sent SIGTERM to Freqtrade processes matching '{strategy_name}'. Waiting for shutdown...")
+    """Kill Freqtrade processes if enabled."""
+    if args.launch_freqtrade:
+        try:
+            # Send SIGTERM to allow graceful shutdown
+            subprocess.run(f"pkill -f '{strategy_name}'", shell=True)
+            # Wait a bit to allow the process to terminate gracefully
+            time.sleep(3)
+            # Forcefully terminate any remaining processes
+            subprocess.run(f"pkill -9 -f '{strategy_name}'", shell=True)
+        except Exception as e:
+            print(
+                f"An error occurred while terminating Freqtrade processes: {e}")
+    else:
+        print("Killing Freqtrade processes is disabled.")
 
-        # Wait a bit to allow the process to terminate gracefully
-        time.sleep(3)
-
-        # Forcefully terminate any remaining processes
-        subprocess.run(f"pkill -9 -f '{strategy_name}'", shell=True)
-        #print(f"Forcefully terminated any remaining Freqtrade processes matching '{strategy_name}'.")
-    except Exception as e:
-        print(f"An error occurred while terminating Freqtrade processes: {e}")
 
 
 
@@ -274,7 +280,7 @@ def place_new_order():
         print("Pair selection cancelled.")
         return
     
-# Check if the pair is in the pair list, if not, add it
+    # Check if the pair is in the pair list, if not, add it
     if pair not in pairs_list:
         print(f"{pair} is not in the pair list. Adding it now...")
         pairs_list.append(pair)
@@ -300,7 +306,7 @@ def place_new_order():
     # Instantiate and set up the strategy
     clear_screen()
     strategy = strategy_class(dict())
-    strategy.input_strategy_data(pair)
+    strategy.input_strategy_data(pair, EASY_MODE)
     
     global strategy_data_handler
     all_order_data = strategy_data_handler.read_strategy_data()
@@ -329,13 +335,6 @@ def update_pair_list(pairs):
     # if current_pairs != pairs:
     #     print("Restarting Freqtrade to sync pair list with orders.")
     #     restart_freqtrade()
-
-
-def restart_freqtrade():
-    """Restart freqtrade by killing and then launching it."""
-    kill_freqtrade()
-    launch_freqtrade()
-    print("Freqtrade restarted.")
 
 
 def sync_pairlist_to_orders():
@@ -396,19 +395,19 @@ def remove_old_data():
 
 def main_menu():
     clear_screen()
+    
     print("===== Custom Orders Management System =====")
     print("1: Place New Order 💰")
     print("2: Edit (or View) Existing Orders 🔧")
-    print("3: Edit (or View) Pair List 🔧")
-    print("4: Launch Freqtrade 🤖")
-    print("5: Kill All Freqtrade 🤖")
-    print("6: Remove Old Data 🔨")
-    print(
-        "\n******* Always RESET FreqTrade AFTER adding NEW PAIRS (Ctrl - C) *******\n")
-    print("7: Exit")
+    if not EASY_MODE:
+
+        print("3: Edit (or View) Pair List 🔧")
+        print("4: Launch Freqtrade 🤖")
+        print("5: Kill All Freqtrade 🤖")
+        print("6: Remove Old Data 🔨")
+        print("7: Exit")
 
     return input("Enter your choice: ")
-
 
 
 strategy = None
@@ -416,10 +415,21 @@ strategy = None
 # Initialize the StrategyDataHandler with the base_dir
 strategy_data_handler = None
 
-def run():
-    global strategy_name
-    strategy_name = select_strategy()
+
+
+# for sergey and easy users
+EASY_MODE = True
     
+def run():
+    
+    
+    global strategy_name
+    
+    if EASY_MODE:
+        strategy_name = "MATrailingStopLossStrategy"  # select_strategy()
+    else:
+        strategy_name = select_strategy()
+        
     global strategy_data_handler 
     strategy_data_handler = StrategyDataHandler(strategy_name, base_dir)
     
@@ -457,5 +467,28 @@ def run():
     print("LEAVING FreqTrade RUNNING! To stop it, use the 'Kill All Freqtrade' option, or restart the script!")
 
 
+import webbrowser
+# Ensure viertualenv is activated
+import subprocess
+
 if __name__ == "__main__":
+    # Setup command line argument parsing
+    parser = argparse.ArgumentParser(
+        description="Custom Orders Management System")
+    parser.add_argument('--launch_freqtrade', action='store_true',
+                        help='Enable automatic management of Freqtrade processes')
+    args = parser.parse_args()
+    
+    # Open frequi
+    url = "http://localhost:6970"
+    webbrowser.open(url)
+
+    
+
+    # Activate the virtual environment
+    subprocess.run(["source", ".venv/bin/activate"])
+
+    # Global variables for paths
+    base_dir = os.path.abspath('user_data/strategies')
+    pair_list_path = os.path.abspath(os.path.join(base_dir, 'pair_list.txt'))
     run()

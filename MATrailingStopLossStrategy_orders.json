@@ -1,266 +1,302 @@
 {
     "AAVE/USD": {
         "data": {
-            "ma_type": "EMA",
-            "ma_period": 42,
-            "profit_activating_tsl": 2.5,
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 1.0,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.3,
-            "stake_amount": 100.0
+            "tight_trailing_stop_loss": 0.2,
+            "loose_trailing_stop_loss": 0.5,
+            "stake_amount": 50.0
         },
         "status": "EXITED"
     },
-    "ALGO/USD": {
+    "AKT/USD": {
         "data": {
-            "ma_type": "EMA",
-            "ma_period": 18,
-            "profit_activating_tsl": 2.0,
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 1.0,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.8,
-            "stake_amount": 100.0
+            "tight_trailing_stop_loss": 0.5,
+            "loose_trailing_stop_loss": 0.5,
+            "stake_amount": 50.0
+        },
+        "status": "EXITED"
+    },
+    "APE/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 4.0,
+            "take_profit_hit": false,
+            "tight_trailing_stop_loss": 0.2,
+            "loose_trailing_stop_loss": 0.6,
+            "stake_amount": 20.0
         },
         "status": "EXITED"
     },
     "ATOM/USD": {
         "data": {
             "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 4.0,
+            "ma_period": 5,
+            "profit_activating_tsl": 10.0,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.2,
-            "loose_trailing_stop_loss": 0.4,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
-    },
-    "AVAX/USD": {
-        "data": {
-            "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 2.1,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.15,
-            "loose_trailing_stop_loss": 0.5,
+            "tight_trailing_stop_loss": 0.5,
+            "loose_trailing_stop_loss": 100.0,
             "stake_amount": 200.0
         },
         "status": "EXITED"
     },
-    "DYDX/USD": {
+    "BAT/USD": {
         "data": {
-            "ma_type": "EMA",
-            "ma_period": 42,
-            "profit_activating_tsl": 4.0,
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 11.0,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.2,
-            "stake_amount": 5.0
+            "tight_trailing_stop_loss": 1.0,
+            "loose_trailing_stop_loss": 100.0,
+            "stake_amount": 100.0
+        },
+        "status": "EXITED"
+    },
+    "BCH/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 6.3,
+            "take_profit_hit": false,
+            "tight_trailing_stop_loss": 1.0,
+            "loose_trailing_stop_loss": 100.0,
+            "stake_amount": 60.0
+        },
+        "status": "EXITED"
+    },
+    "BLUR/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 1.0,
+            "take_profit_hit": false,
+            "tight_trailing_stop_loss": 0.5,
+            "loose_trailing_stop_loss": 0.5,
+            "stake_amount": 30.0
+        },
+        "status": "EXITED"
+    },
+    "BRICK/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 2.35,
+            "take_profit_hit": false,
+            "tight_trailing_stop_loss": 0.2,
+            "loose_trailing_stop_loss": 3.2,
+            "stake_amount": 50.0
         },
         "status": "HOLDING"
     },
+    "DOGE/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 0.25,
+            "take_profit_hit": false,
+            "tight_trailing_stop_loss": 4.2,
+            "loose_trailing_stop_loss": 8.0,
+            "stake_amount": 40.0
+        },
+        "status": "HOLDING"
+    },
+    "EOS/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 2.0,
+            "take_profit_hit": false,
+            "tight_trailing_stop_loss": 0.12,
+            "loose_trailing_stop_loss": 1.0,
+            "stake_amount": 50.0
+        },
+        "status": "EXITED"
+    },
+    "FET/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 3.0,
+            "take_profit_hit": true,
+            "tight_trailing_stop_loss": 0.4,
+            "loose_trailing_stop_loss": 3.0,
+            "stake_amount": 40.0
+        },
+        "status": "EXITED"
+    },
+    "FIL/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 3.2,
+            "take_profit_hit": true,
+            "tight_trailing_stop_loss": 0.2,
+            "loose_trailing_stop_loss": 100.0,
+            "stake_amount": 110.0
+        },
+        "status": "EXITED"
+    },
     "FLR/USD": {
         "data": {
-            "ma_type": "EMA",
-            "ma_period": 18,
-            "profit_activating_tsl": 3.5,
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 1.6,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 1.0,
-            "stake_amount": 100.0
+            "tight_trailing_stop_loss": 0.2,
+            "loose_trailing_stop_loss": 0.8,
+            "stake_amount": 50.0
+        },
+        "status": "EXITED"
+    },
+    "FTM/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 10.0,
+            "take_profit_hit": false,
+            "tight_trailing_stop_loss": 1.0,
+            "loose_trailing_stop_loss": 100.0,
+            "stake_amount": 50.0
         },
         "status": "EXITED"
     },
     "IMX/USD": {
         "data": {
             "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 0.85,
+            "ma_period": 5,
+            "profit_activating_tsl": 6.5,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.5,
-            "loose_trailing_stop_loss": 0.1,
-            "stake_amount": 100.0
+            "tight_trailing_stop_loss": 0.8,
+            "loose_trailing_stop_loss": 100.0,
+            "stake_amount": 50.0
+        },
+        "status": "HOLDING"
+    },
+    "KAVA/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 10.0,
+            "take_profit_hit": false,
+            "tight_trailing_stop_loss": 1.0,
+            "loose_trailing_stop_loss": 100.0,
+            "stake_amount": 50.0
         },
         "status": "EXITED"
     },
-    "LINK/USD": {
+    "KNC/USD": {
         "data": {
-            "ma_type": "EMA",
-            "ma_period": 42,
-            "profit_activating_tsl": 4.2,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.2,
-            "stake_amount": 100.0
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 1.6,
+            "take_profit_hit": true,
+            "tight_trailing_stop_loss": 0.2,
+            "loose_trailing_stop_loss": 100.0,
+            "stake_amount": 50.0
         },
         "status": "EXITED"
     },
     "LTC/USD": {
         "data": {
-            "ma_type": "EMA",
-            "ma_period": 42,
-            "profit_activating_tsl": 5.0,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.2,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
-    },
-    "MATIC/USD": {
-        "data": {
             "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 0.95,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.25,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
-    },
-    "MINA/USD": {
-        "data": {
-            "ma_type": "EMA",
-            "ma_period": 42,
-            "profit_activating_tsl": 3.0,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.3,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
-    },
-    "MKR/USD": {
-        "data": {
-            "ma_type": "EMA",
-            "ma_period": 18,
-            "profit_activating_tsl": 3.0,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.3,
-            "stake_amount": 100.0
+            "ma_period": 5,
+            "profit_activating_tsl": 0.9,
+            "take_profit_hit": true,
+            "tight_trailing_stop_loss": 0.2,
+            "loose_trailing_stop_loss": 1.0,
+            "stake_amount": 50.0
         },
         "status": "EXITED"
     },
     "NEAR/USD": {
         "data": {
             "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 1.0,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.2,
-            "loose_trailing_stop_loss": 0.2,
-            "stake_amount": 100.0
+            "ma_period": 5,
+            "profit_activating_tsl": 11.0,
+            "take_profit_hit": true,
+            "tight_trailing_stop_loss": 0.5,
+            "loose_trailing_stop_loss": 0.5,
+            "stake_amount": 50.0
         },
         "status": "EXITED"
     },
-    "SEI/USD": {
-        "data": {
-            "ma_type": "EMA",
-            "ma_period": 18,
-            "profit_activating_tsl": 4.0,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 1.0,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
-    },
-    "SHIB/USD": {
+    "PAXG/USD": {
         "data": {
             "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 2.8,
+            "ma_period": 5,
+            "profit_activating_tsl": 1.88,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 1.0,
-            "stake_amount": 100.0
+            "tight_trailing_stop_loss": 0.12,
+            "loose_trailing_stop_loss": 4.2,
+            "stake_amount": 200.0
         },
         "status": "HOLDING"
     },
+    "SCRT/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 2.0,
+            "take_profit_hit": true,
+            "tight_trailing_stop_loss": 0.1,
+            "loose_trailing_stop_loss": 4.0,
+            "stake_amount": 40.0
+        },
+        "status": "EXITED"
+    },
+    "SGB/USD": {
+        "data": {
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 1.2,
+            "take_profit_hit": true,
+            "tight_trailing_stop_loss": 0.2,
+            "loose_trailing_stop_loss": 2.0,
+            "stake_amount": 50.0
+        },
+        "status": "EXITED"
+    },
     "STRK/USD": {
         "data": {
-            "ma_type": "EMA",
-            "ma_period": 42,
-            "profit_activating_tsl": 2.0,
+            "ma_type": "HMA",
+            "ma_period": 5,
+            "profit_activating_tsl": 13.0,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.5,
-            "stake_amount": 200.0
+            "tight_trailing_stop_loss": 1.0,
+            "loose_trailing_stop_loss": 100.0,
+            "stake_amount": 50.0
         },
         "status": "EXITED"
     },
     "STX/USD": {
         "data": {
-            "ma_type": "EMA",
-            "ma_period": 42,
-            "profit_activating_tsl": 5.0,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.5,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
-    },
-    "SUI/USD": {
-        "data": {
-            "ma_type": "EMA",
-            "ma_period": 42,
-            "profit_activating_tsl": 3.3,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.3,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
-    },
-    "TIA/USD": {
-        "data": {
             "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 0.8,
+            "ma_period": 5,
+            "profit_activating_tsl": 0.15,
             "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.15,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
-    },
-    "UNI/USD": {
-        "data": {
-            "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 2.0,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 1.4,
-            "stake_amount": 100.0
+            "tight_trailing_stop_loss": 0.7,
+            "loose_trailing_stop_loss": 2.0,
+            "stake_amount": 50.0
         },
         "status": "HOLDING"
     },
-    "WAVES/USD": {
+    "XMR/USD": {
         "data": {
             "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 2.1,
+            "ma_period": 5,
+            "profit_activating_tsl": 0.8,
             "take_profit_hit": false,
             "tight_trailing_stop_loss": 0.2,
-            "loose_trailing_stop_loss": 0.8,
-            "stake_amount": 100.0
+            "loose_trailing_stop_loss": 1.5,
+            "stake_amount": 40.0
         },
-        "status": "EXITED"
-    },
-    "XRP/USD": {
-        "data": {
-            "ma_type": "HMA",
-            "ma_period": 12,
-            "profit_activating_tsl": 0.6,
-            "take_profit_hit": false,
-            "tight_trailing_stop_loss": 0.1,
-            "loose_trailing_stop_loss": 0.2,
-            "stake_amount": 100.0
-        },
-        "status": "EXITED"
+        "status": "HOLDING"
     }
 }

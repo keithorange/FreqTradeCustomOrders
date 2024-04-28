@@ -1,0 +1,17 @@
+{
+    "exchange": {
+        "name": "kraken",
+        "pair_whitelist": [
+            "BLUR/USD",
+            "BRICK/USD",
+            "DOGE/USD",
+            "IMX/USD",
+            "PAXG/USD",
+            "SCRT/USD",
+            "STX/USD",
+            "XMR/USD",
+            "BTC/USD"
+        ],
+        "pair_blacklist": []
+    }
+}
