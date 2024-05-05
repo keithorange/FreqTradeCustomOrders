@@ -51,18 +51,30 @@ class FileLoadingStrategy(IStrategy):
         if key in data:    
             return data[key]
         else:
-            #print(ValueError(f"Key {key} not found in {data}"))
+            print(f'ValueError(Key {key} not found in {data}')
             return None
     
 
-    
     def set_dfile_arg(self, pair, key, value):
-        
         # get fresh args
         self.args = self.order_handler.read_strategy_data()
+
+        # Check if the pair exists in self.args
+        if pair not in self.args:
+            self.args[pair] = {"data": {}}
+
+        # Check if the "data" key exists for the pair
+        if "data" not in self.args[pair]:
+            self.args[pair]["data"] = {}
+
+        # Set the value for the given key
         self.args[pair]["data"][key] = value
+
+        # Save the updated strategy data
+        #print(f'SAVING STRATEGY DATA: {self.args[pair]["data"]}')
         self.order_handler.save_strategy_data(self.args)
-   
+
+
 
     def bot_loop_start(self, current_time: datetime, **kwargs) -> None:
         """

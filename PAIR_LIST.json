@@ -2,14 +2,25 @@
     "exchange": {
         "name": "kraken",
         "pair_whitelist": [
+            "ADA/USD",
+            "APE/USD",
+            "ATOM/USD",
+            "BCH/USD",
             "BLUR/USD",
-            "BRICK/USD",
-            "DOGE/USD",
+            "ICP/USD",
             "IMX/USD",
             "PAXG/USD",
             "SCRT/USD",
-            "STX/USD",
+            "W/USD",
+            "DYM/USD",
+            "FLR/USD",
+            "LCX/USD",
+            "RNDR/USD",
+            "SGB/USD",
             "XMR/USD",
+            "FIL/USD",
+            "INJ/USD",
+            "XRP/USD",
             "BTC/USD"
         ],
         "pair_blacklist": []

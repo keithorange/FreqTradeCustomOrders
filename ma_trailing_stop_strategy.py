@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 import time
 from typing import Any, Dict, Optional
+from freqtrade.persistence.trade_model import Order, Trade
 from freqtrade.strategy.interface import IStrategy
 from pandas import DataFrame
 import numpy as np
@@ -70,6 +71,7 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
 
     use_exit_signal = True
 
+
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         try:
             pair = metadata['pair']
@@ -100,45 +102,56 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
         to a tight trailing stop loss once a certain profit target is hit.
         """
         # Retrieve the dataframe with the 'ma' column already calculated
-        dataframe, _ = self.dp.get_analyzed_dataframe(
-            pair=pair, timeframe=self.timeframe)
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
         last_candle = dataframe.iloc[-1].squeeze()
+        pct_diff = ((last_candle['ma'] - trade.open_rate) / trade.open_rate) * 100
 
         # Retrieve strategy parameters from trade's custom_info or strategy configuration
-        tight_trailing_stop_loss = self.get_dfile_arg(
-            pair, 'tight_trailing_stop_loss')
-        loose_trailing_stop_loss = self.get_dfile_arg(pair, 'loose_trailing_stop_loss')
-        profit_activating_tsl = self.get_dfile_arg(pair, 'profit_activating_tsl')
-
-        # Determine the highest MA encountered
-
+        tight_trailing_stop_loss = self.get_dfile_arg(pair, 'tight_trailing_stop_loss')
+        loose_stop_loss = self.get_dfile_arg(pair, 'loose_stop_loss')
+        is_loose_stop_loss_trailing = self.get_dfile_arg(pair, 'is_loose_stop_loss_trailing')
+        take_profit = self.get_dfile_arg(pair, 'take_profit')
+        take_profit_hit = self.get_dfile_arg(pair, 'take_profit_hit')
         highest_ma = self.get_dfile_arg(pair, 'highest_ma')
+        
 
         if not highest_ma:
             #print(f"(Highest MA not found): setting to last candle's MA {last_candle['ma']}")
             highest_ma = last_candle['ma']
+            
 
         # If current MA is higher than the recorded highest MA, update the highest MA
-        if last_candle['ma'] > highest_ma:
+        if last_candle['ma'] >= highest_ma:
             highest_ma = last_candle['ma']
             self.set_dfile_arg(pair, 'highest_ma', highest_ma)
 
         # Check if the take profit has been hit to switch to tight trailing stop loss
-        if not self.get_dfile_arg(pair, 'take_profit_hit') and current_profit > profit_activating_tsl / 100:
+        above_tp = current_profit > take_profit / 100
+        if not take_profit_hit and above_tp:
             self.set_dfile_arg(pair, 'take_profit_hit', True)
 
         # Calculate the trailing stop loss based on the highest MA
-
-        if self.get_dfile_arg(pair, 'take_profit_hit'):
+        if above_tp:
+            # activated tight trailing
             tsl = highest_ma * (1 - tight_trailing_stop_loss / 100)
 
             if current_rate < tsl:
                 return 'tight_trailing_stop_loss'
         else:
-            tsl = highest_ma * (1 - loose_trailing_stop_loss / 100)
+            # below take_profit (loose activated still)
 
-            if current_rate < tsl:
-                return 'loose_trailing_stop_loss'
+            # V1 : LOOSE SL == trailing stop loss
+            if is_loose_stop_loss_trailing:
+                tsl = highest_ma * (1 - loose_stop_loss / 100)
+
+                if current_rate < tsl:
+                    return 'loose_stop_loss_trailing'
+            else:
+            # V2: LOOSE SL == regular static stop loss
+                is_below_loose_stop_loss = pct_diff < -loose_stop_loss
+                if is_below_loose_stop_loss:
+                    return 'loose_stop_loss_static'
+    
 
 
     def input_strategy_data(self, pair: str, easy_mode:bool=False):
@@ -149,11 +162,13 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
         ma_period = int(input("Enter the period for the moving average: "))
 
 
-        loose_trailing_stop_loss = float(
-            input("Initial (LOOSE) trailing stop loss % (1 for -1%); this applies until your PROFIT-TARGET is hit: "))
+        loose_stop_loss = float(
+            input("Initial (LOOSE) stop loss % (1 for -1%); this applies until your PROFIT-TARGET is hit: "))
+        is_loose_stop_loss_trailing = input(
+            "Is LOOSE stop loss (T)railing or (S)tatic? (T or S): ").lower() == 'T'
         tight_trailing_stop_loss = float(
             input("Secondary (TIGHT) trailing stop loss % (1 for -1%): "))
-        profit_activating_tsl = float(
+        take_profit = float(
             input("PROFIT-TARGET profit % to switch LOOSE TSL -> TIGHT TSL (1 for activation at 1% profit): "))
 
         stake_amount = float(input("Enter the amount you wish to invest in this trade (leave blank for $10 default):  "))
@@ -162,11 +177,13 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
             "ma_type": ma_type,
             "ma_period": ma_period,
 
-            "profit_activating_tsl": profit_activating_tsl,
+            "take_profit": take_profit,
             "take_profit_hit": False,  # default "off"
+            "highest_ma": 0,
             "tight_trailing_stop_loss": tight_trailing_stop_loss,
-            "loose_trailing_stop_loss": loose_trailing_stop_loss,
-            "stake_amount": stake_amount
+            "loose_stop_loss": loose_stop_loss,
+            "is_loose_stop_loss_trailing": is_loose_stop_loss_trailing,
+            "stake_amount": stake_amount,
             }
 
         print("\nPlease review your order details:")
@@ -191,11 +208,12 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
         ma_type = 'HMA'
         ma_period = 5
 
-        loose_trailing_stop_loss = float(
-            input("(🏁 Initial Stop Loss)\n\tEnter the initial flexible stop loss percentage (e.g., enter 1 for -1%). This stop loss will remain active until your profit target is reached: "))
+        loose_stop_loss = float(
+            input("(🏁 Initial Stop Loss)\n\tEnter the initial stop loss percentage (e.g., enter 1 for -1%). This stop loss will remain active until your profit target is reached: "))
+        is_loose_stop_loss_trailing = input("Is LOOSE stop loss (T)railing or (S)tatic? (T or S): ").lower() == 'T'
         tight_trailing_stop_loss = float(
             input("(⚠️ Secondary Stop Loss)\n\tEnter the secondary tighter stop loss percentage (e.g., enter 1 for -1%): "))
-        profit_activating_tsl = float(
+        take_profit = float(
             input("(🎯 Profit Target for Stop Loss Switch)\n\tEnter the profit percentage at which you want to switch from the initial flexible stop loss to the tighter stop loss (e.g., enter 1 for 1% profit): "))
 
         stake_amount = float(input(
@@ -205,10 +223,12 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
             "ma_type": ma_type,
             "ma_period": ma_period,
 
-            "profit_activating_tsl": profit_activating_tsl,
+            "take_profit": take_profit,
             "take_profit_hit": False,  # default "off"
+            "highest_ma": 0,
             "tight_trailing_stop_loss": tight_trailing_stop_loss,
-            "loose_trailing_stop_loss": loose_trailing_stop_loss,
+            "loose_stop_loss": loose_stop_loss,
+            "is_loose_stop_loss_trailing": is_loose_stop_loss_trailing,
             "stake_amount": stake_amount
         }
 
@@ -235,14 +255,15 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
             # get all from self.get_dfile_arg(pair,...)
             ma_type = self.get_dfile_arg(pair, 'ma_type')
             ma_period = self.get_dfile_arg(pair, 'ma_period')
-            loose_trailing_stop_loss = self.get_dfile_arg(pair, 'loose_trailing_stop_loss')
+            loose_stop_loss = self.get_dfile_arg(pair, 'loose_stop_loss')
             tight_trailing_stop_loss = self.get_dfile_arg(pair, 'tight_trailing_stop_loss')
-            profit_activating_tsl = self.get_dfile_arg(pair, 'profit_activating_tsl')
+            take_profit = self.get_dfile_arg(pair, 'take_profit')
             stake_amount = self.get_dfile_arg(pair, 'stake_amount')
+            is_loose_stop_loss_trailing = self.get_dfile_arg(pair, 'is_loose_stop_loss_trailing')
 
             dataframe.loc[dataframe.index[-1], ['enter_long', 'enter_tag']] = (
                 1,
-                f"(MATrailingStopLossStrategy) ma_type={ma_type}, ma_period={ma_period}, loose_trailing_stop_loss={loose_trailing_stop_loss}, tight_trailing_stop_loss={tight_trailing_stop_loss}, profit_activating_tsl={profit_activating_tsl}, stake_amount={stake_amount}"
+                f"(MATrailingStopLossStrategy) ma_type={ma_type}, ma_period={ma_period}, is_loose_stop_loss_trailing={is_loose_stop_loss_trailing}, loose_stop_loss={loose_stop_loss}, tight_trailing_stop_loss={tight_trailing_stop_loss}, take_profit={take_profit}, stake_amount={stake_amount}"
             )
         except Exception as e:
             print(f"Error: set_entry_signal: {e}")

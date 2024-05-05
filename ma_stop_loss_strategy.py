@@ -123,7 +123,7 @@ class MAStopLossStrategy(FileLoadingStrategy):
             highest_ma = last_candle['ma']
 
         # If current MA is higher than the recorded highest MA, update the highest MA
-        if last_candle['ma'] > highest_ma:
+        if last_candle['ma'] >= highest_ma:
             highest_ma = last_candle['ma']
             self.set_dfile_arg(pair, 'highest_ma', highest_ma)
 

@@ -418,7 +418,7 @@ strategy_data_handler = None
 
 
 # for sergey and easy users
-EASY_MODE = True
+EASY_MODE = False
     
 def run():
     
@@ -485,8 +485,8 @@ if __name__ == "__main__":
 
     
 
-    # Activate the virtual environment
-    subprocess.run(["source", ".venv/bin/activate"])
+    # # Activate the virtual environment
+    # subprocess.run(["source", ".venv/bin/activate"])
 
     # Global variables for paths
     base_dir = os.path.abspath('user_data/strategies')
