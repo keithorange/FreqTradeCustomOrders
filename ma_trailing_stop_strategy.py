@@ -81,10 +81,10 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
 
 
             # EMA Calculation
-            if ma_type == 'EMA':
+            if ma_type.upper() == 'EMA':
                 dataframe['ma'] = pta.ema(dataframe['close'], length=ma_period)
             # HMA Calculation
-            elif ma_type == 'HMA':
+            elif ma_type.upper() == 'HMA':
                 dataframe['ma'] = pta.hma(dataframe['close'], length=ma_period)
 
         except Exception as e:
@@ -165,7 +165,7 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
         loose_stop_loss = float(
             input("Initial (LOOSE) stop loss % (1 for -1%); this applies until your PROFIT-TARGET is hit: "))
         is_loose_stop_loss_trailing = input(
-            "Is LOOSE stop loss (T)railing or (S)tatic? (T or S): ").lower() == 'T'
+            "Is LOOSE stop loss (T)railing or (S)tatic? (T or S): ").upper() == 'T'
         tight_trailing_stop_loss = float(
             input("Secondary (TIGHT) trailing stop loss % (1 for -1%): "))
         take_profit = float(
@@ -210,7 +210,7 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
 
         loose_stop_loss = float(
             input("(🏁 Initial Stop Loss)\n\tEnter the initial stop loss percentage (e.g., enter 1 for -1%). This stop loss will remain active until your profit target is reached: "))
-        is_loose_stop_loss_trailing = input("Is LOOSE stop loss (T)railing or (S)tatic? (T or S): ").lower() == 'T'
+        is_loose_stop_loss_trailing = input("Is LOOSE stop loss (T)railing or (S)tatic? (T or S): ").upper() == 'T'
         tight_trailing_stop_loss = float(
             input("(⚠️ Secondary Stop Loss)\n\tEnter the secondary tighter stop loss percentage (e.g., enter 1 for -1%): "))
         take_profit = float(
