@@ -1,3 +1,4 @@
+from file_loading_strategy import ACTIVE_ORDER_STATUSES_VALUES
 from pandas import DataFrame
 from typing import Dict, Any
 from enum import Enum, auto
@@ -10,7 +11,7 @@ import json
 import time
 
 # Assuming custom_order_form_handler.py is in the same directory
-from custom_order_form_handler import OrderStatus, StrategyDataHandler
+from custom_order_form_handler import ACTIVE_ORDER_STATUSES_VALUES, INACTIVE_ORDER_STATUSES_VALUES, OrderStatus, StrategyDataHandler
 from ma_stop_loss_strategy import MAStopLossStrategy
 from ma_slope_strategy import MASlopeStrategy
 from ma_trailing_stop_strategy import MATrailingStopLossStrategy
@@ -118,7 +119,7 @@ def display_orders():
     else:
         for pair, data in strategy_data.items():
             print(f"Pair: {pair}")
-            for key, value in data['data'].items():
+            for key, value in data.items():
                 print(f"  {key}: {value}")
             print(f"  Status: {data['status']}\n")
     input("\nPress Enter to return...")
@@ -147,15 +148,15 @@ def edit_existing_orders():
 
 
     # Editing 'data' part
-    for key in data_to_edit['data'].keys():
-        new_value = input(f"{key} (current: {data_to_edit['data'][key]}): ")
+    for key in data_to_edit.keys():
+        new_value = input(f"{key} (current: {data_to_edit[key]}): ")
         if new_value:
             if key == "take_profit_hit":
                 # This will correctly parse 'true', 'True', '1', 't', 'y', 'yes' as True, and everything else as False.
-                data_to_edit['data'][key] = new_value.strip().lower() in [
+                data_to_edit[key] = new_value.strip().lower() in [
                     'true', '1', 't', 'y', 'yes']
-            else:
-                data_to_edit['data'][key] = float(new_value) if new_value.replace('.', '', 1).isdigit() else new_value
+            else:   
+                data_to_edit[key] = float(new_value) if new_value.replace('.', '', 1).isdigit() else new_value
                 
     # Editing 'status' part
     print(f"Current status: {data_to_edit['status']}")
@@ -164,51 +165,63 @@ def edit_existing_orders():
     if new_status in OrderStatus._value2member_map_:
         data_to_edit['status'] = new_status
 
-    handler.update_strategy_data(
-        pair_to_edit, data_to_edit['data'], OrderStatus[data_to_edit['status']])
+    handler.update_strategy_data(pair_to_edit, data_to_edit)
     print(f"✅ Order for {pair_to_edit} updated successfully!")
 
 
-def edit_pair_list():
+def edit_pair_list(new_pairs=None):
     clear_screen()
     pairs = load_pair_list()
 
-    print("Current Pair List:")
-    for i, pair in enumerate(pairs, start=1):
-        print(f"{i}: {pair}")
+    if new_pairs:
+        pairs = new_pairs
+        print("Pair list has been rewritten with the new pairs.")
+    else:
+        print("Current Pair List:")
+        for i, pair in enumerate(pairs, start=1):
+            print(f"{i}: {pair}")
 
-    action = input(
-        "\nDo you want to add (a) or remove (r) pairs? (a/r): ").lower()
-    base_symbol = "/USD"  # Default base symbol
+        action = input(
+            "\nDo you want to add (a), remove (r), or rewrite (w) pairs? (a/r/w): ").lower()
+        base_symbol = "/USD"  # Default base symbol
 
-    if action == 'a':
-        input_pairs = input(
-            "Enter pairs (ex. A/USD B C), '/USD' optional after first: ")
-        input_pairs_list = [pair.upper(
-        ) if '/' in pair else pair.upper() + base_symbol for pair in input_pairs.split()]
-        for new_pair in input_pairs_list:
-            if new_pair not in pairs:
-                pairs.append(new_pair)
-                print(f"{new_pair} added to the pair list.")
-            else:
-                print(f"{new_pair} is already in the pair list.")
-
-    elif action == 'r':
-        input_pairs = input("Enter indices or pairs to remove (ex. 1 2 or A/USD B/CAD): ").split()
-        if all(item.isdigit() for item in input_pairs):  # If all inputs are indices
-            indices_to_remove = sorted([int(idx) - 1 for idx in input_pairs], reverse=True)
-            for idx in indices_to_remove:
-                if 0 <= idx < len(pairs):
-                    removed_pair = pairs.pop(idx)
-                    print(f"Removed {removed_pair} from the pair list.")
-        else:  # If inputs are symbols
-            symbols_to_remove = [item.upper() for item in input_pairs]
-            for symbol in symbols_to_remove:
-                if symbol in pairs:
-                    pairs.remove(symbol)
-                    print(f"Removed {symbol} from the pair list.")
+        if action == 'a':
+            input_pairs = input(
+                "Enter pairs (ex. A/USD B C), '/USD' optional after first: ")
+            input_pairs_list = [pair.upper(
+            ) if '/' in pair else pair.upper() + base_symbol for pair in input_pairs.split()]
+            for new_pair in input_pairs_list:
+                if new_pair not in pairs:
+                    pairs.append(new_pair)
+                    print(f"{new_pair} added to the pair list.")
                 else:
-                    print(f"{symbol} not found in the pair list.")
+                    print(f"{new_pair} is already in the pair list.")
+
+        elif action == 'r':
+            input_pairs = input(
+                "Enter indices or pairs to remove (ex. 1 2 or A/USD B/CAD): ").split()
+            if all(item.isdigit() for item in input_pairs):  # If all inputs are indices
+                indices_to_remove = sorted(
+                    [int(idx) - 1 for idx in input_pairs], reverse=True)
+                for idx in indices_to_remove:
+                    if 0 <= idx < len(pairs):
+                        removed_pair = pairs.pop(idx)
+                        print(f"Removed {removed_pair} from the pair list.")
+            else:  # If inputs are symbols
+                symbols_to_remove = [item.upper() for item in input_pairs]
+                for symbol in symbols_to_remove:
+                    if symbol in pairs:
+                        pairs.remove(symbol)
+                        print(f"Removed {symbol} from the pair list.")
+                    else:
+                        print(f"{symbol} not found in the pair list.")
+
+        elif action == 'w':
+            input_pairs = input(
+                "Enter new pairs to replace the current list (ex. A/USD B C), '/USD' optional after first: ")
+            pairs = [pair.upper(
+            ) if '/' in pair else pair.upper() + base_symbol for pair in input_pairs.split()]
+            print("Pair list has been rewritten with the new pairs.")
 
     update_pair_list(pairs)  # updated to use the helper function
     restart_freqtrade()
@@ -219,58 +232,61 @@ strategy_name = None  # Global variable to store the strategy name
 
 
 def restart_freqtrade():
-    """Restart freqtrade by killing and then launching it, if enabled."""
-    if args.launch_freqtrade:
-        kill_freqtrade()
-        launch_freqtrade()
-        print("Freqtrade restarted.")
-    else:
-        print("Freqtrade process management is disabled.")
+    print(f"turned off...")
+    # """Restart freqtrade by killing and then launching it, if enabled."""
+    # if args.launch_freqtrade:
+    #     kill_freqtrade()
+    #     launch_freqtrade()
+    #     print("Freqtrade restarted.")
+    # else:
+    #     print("Freqtrade process management is disabled.")
 
 
 def launch_freqtrade():
-    """Launch Freqtrade only if enabled."""
-    if args.launch_freqtrade:
-        global strategy_name
-        # Ensure the logs directory exists
-        logs_dir = "CUSTOM_ORDERS_LOGS"
-        os.makedirs(logs_dir, exist_ok=True)
-        # Construct log file names based on strategy and current time
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_files = {
-            "stdout": os.path.join(logs_dir, f"{strategy_name}_stdout_{timestamp}.log"),
-            "stderr": os.path.join(logs_dir, f"{strategy_name}_stderr_{timestamp}.log")
-        }
-        # Prepare the command and launch Freqtrade
-        command = f"bash ./user_data/strategies/run_custom_order_freqtrade.sh {strategy_name}"
-        subprocess.Popen(command, shell=True, stdout=open(
-            log_files["stdout"], "w"), stderr=open(log_files["stderr"], "w"))
-        print(f"Freqtrade launched for '{strategy_name}'. Check logs in {logs_dir} for more details.\n")
-    else:
-        print("Launching Freqtrade is disabled.")
+    print(f"turned off...")
+    # """Launch Freqtrade only if enabled."""
+    # if args.launch_freqtrade:
+    #     global strategy_name
+    #     # Ensure the logs directory exists
+    #     logs_dir = "CUSTOM_ORDERS_LOGS"
+    #     os.makedirs(logs_dir, exist_ok=True)
+    #     # Construct log file names based on strategy and current time
+    #     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    #     log_files = {
+    #         "stdout": os.path.join(logs_dir, f"{strategy_name}_stdout_{timestamp}.log"),
+    #         "stderr": os.path.join(logs_dir, f"{strategy_name}_stderr_{timestamp}.log")
+    #     }
+    #     # Prepare the command and launch Freqtrade
+    #     command = f"bash ./user_data/strategies/run_custom_order_freqtrade.sh {strategy_name}"
+    #     subprocess.Popen(command, shell=True, stdout=open(
+    #         log_files["stdout"], "w"), stderr=open(log_files["stderr"], "w"))
+    #     print(f"Freqtrade launched for '{strategy_name}'. Check logs in {logs_dir} for more details.\n")
+    # else:
+    #     print("Launching Freqtrade is disabled.")
 
 
 def kill_freqtrade():
-    """Kill Freqtrade processes if enabled."""
-    if args.launch_freqtrade:
-        try:
-            # Send SIGTERM to allow graceful shutdown
-            subprocess.run(f"pkill -f '{strategy_name}'", shell=True)
-            # Wait a bit to allow the process to terminate gracefully
-            time.sleep(3)
-            # Forcefully terminate any remaining processes
-            subprocess.run(f"pkill -9 -f '{strategy_name}'", shell=True)
-        except Exception as e:
-            print(
-                f"An error occurred while terminating Freqtrade processes: {e}")
-    else:
-        print("Killing Freqtrade processes is disabled.")
-
-
+    print(f"turned off...")
+    # """Kill Freqtrade processes if enabled."""
+    # if args.launch_freqtrade:
+    #     try:
+    #         # Send SIGTERM to allow graceful shutdown
+    #         subprocess.run(f"pkill -f '{strategy_name}'", shell=True)
+    #         # Wait a bit to allow the process to terminate gracefully
+    #         time.sleep(3)
+    #         # Forcefully terminate any remaining processes
+    #         subprocess.run(f"pkill -9 -f '{strategy_name}'", shell=True)
+    #     except Exception as e:
+    #         print(
+    #             f"An error occurred while terminating Freqtrade processes: {e}")
+    # else:
+    #     print("Killing Freqtrade processes is disabled.")
 
 
 def place_new_order():
     global strategy_name
+    global strategy_data_handler
+
     if not strategy_name:
         return
 
@@ -279,18 +295,27 @@ def place_new_order():
     if not pair:
         print("Pair selection cancelled.")
         return
-    
-    # Check if the pair is in the pair list, if not, add it
+
+    # Check if the pair is already in the pair list, if not, add it
     if pair not in pairs_list:
         print(f"{pair} is not in the pair list. Adding it now...")
         pairs_list.append(pair)
-        update_pair_list(pairs_list)  # updated to use the helper functio
+        update_pair_list(pairs_list)  # Update the pair list file
         restart_freqtrade()
 
+    # Fetch orders using StrategyDataHandler
+    orders = strategy_data_handler.read_strategy_data()
 
-    # Rest of the code for placing a new order...
+    # Check if the pair already has an order with status in active reference
+    has_active_order = any(
+        data for pair_name, data in orders.items() if pair_name == pair and data["status"] in ACTIVE_ORDER_STATUSES_VALUES
+    )
 
-
+    if has_active_order:
+        print(f"🚨🚨 {pair} already has an active order! 🚨🚨")
+        return  # Exit the function instead of calling exit()
+    else:
+        print(f"No active orders found for {pair}.")
 
     # Depending on the selected strategy, instantiate the strategy class
     strategy_class = {
@@ -306,49 +331,47 @@ def place_new_order():
     # Instantiate and set up the strategy
     clear_screen()
     strategy = strategy_class(dict())
-    strategy.input_strategy_data(pair, EASY_MODE)
-    
-    global strategy_data_handler
+    strategy.input_strategy_data(pair)
+
     all_order_data = strategy_data_handler.read_strategy_data()
     order_data = all_order_data[pair]
-    print(f"Placing order: {order_data}")
+    print(f"\n\tPlacing order: {order_data}")
 
     time.sleep(3)
     clear_screen()
 
-
-def filter_orders_by_status(strategy_data, statuses):
-    """Filter orders by given statuses."""
-    return [pair for pair, data in strategy_data.items() if OrderStatus(data['status']) in statuses]
-
+# Update pair list function to write pairs to file
 
 
 def update_pair_list(pairs):
     """Update the pair list with given pairs and sync it with current orders."""
-    
-    current_pairs = load_pair_list()
+
     with open(pair_list_path, 'w') as file:
         for pair in pairs:
             file.write(f"{pair}\n")
     print("Pair list updated.")
-    
-    # if current_pairs != pairs:
-    #     print("Restarting Freqtrade to sync pair list with orders.")
-    #     restart_freqtrade()
 
 
+# Function to filter orders by given statuses
+def filter_orders_by_status(strategy_data, statuses):
+    """Filter orders by given statuses."""
+    return [pair for pair, data in strategy_data.items() if data['status'] in statuses]
+
+
+
+
+# Function to sync pair list to orders
 def sync_pairlist_to_orders():
     global strategy_name
     if not strategy_name:
         return
-    
-    global strategy_data_handler
 
+    global strategy_data_handler
 
     strategy_data = strategy_data_handler.read_strategy_data()
 
     valid_pairs = filter_orders_by_status(
-        strategy_data, [OrderStatus.PENDING, OrderStatus.HOLDING])
+        strategy_data, ACTIVE_ORDER_STATUSES_VALUES)
 
     update_pair_list(valid_pairs)
     restart_freqtrade()
@@ -364,10 +387,11 @@ def remove_old_data():
     print(f"all_orders for {strategy_name}: {orders}")
 
     # Step 1: Remove exited orders
-    if input("Remove exited orders? (y/n): ").lower() == 'y':
+    if input("Remove exited/cancelled orders? (y/n): ").lower() == 'y':
         orders = {
             pair: data for pair, data in orders.items()
-            if OrderStatus(data['status']) != OrderStatus.EXITED
+            # Fixed comparison
+            if data['status'] not in INACTIVE_ORDER_STATUSES_VALUES
         }
 
     # Step 2: Ensure all orders are in pair list
@@ -378,10 +402,11 @@ def remove_old_data():
         }
 
     # Step 3: Keep pairs with PENDING or HOLDING orders
-    if input("Keep only pairs with PENDING or HOLDING orders? (y/n): ").lower() == 'y':
+    if input("Keep only pairs with PENDING, WAITING, or HOLDING orders (All ACTIVE Orders)? (y/n): ").lower() == 'y':
         orders = {
             pair: data for pair, data in orders.items()
-            if OrderStatus(data['status']) in [OrderStatus.PENDING, OrderStatus.HOLDING]
+            # Fixed comparison
+            if data['status'] in ACTIVE_ORDER_STATUSES_VALUES
         }
 
     # Update the pair list to reflect the changes
@@ -393,19 +418,19 @@ def remove_old_data():
     strategy_data_handler.save_strategy_data(orders)
 
 
+
 def main_menu():
     clear_screen()
     
     print("===== Custom Orders Management System =====")
     print("1: Place New Order 💰")
     print("2: Edit (or View) Existing Orders 🔧")
-    if not EASY_MODE:
 
-        print("3: Edit (or View) Pair List 🔧")
-        print("4: Launch Freqtrade 🤖")
-        print("5: Kill All Freqtrade 🤖")
-        print("6: Remove Old Data 🔨")
-        print("7: Exit")
+    print("3: Edit (or View) Pair List 🔧")
+    # print("4: Launch Freqtrade 🤖")
+    # print("5: Kill All Freqtrade 🤖")
+    print("6: Remove Old Data 🔨")
+    print("7: Exit")
 
     return input("Enter your choice: ")
 
@@ -415,20 +440,16 @@ strategy = None
 # Initialize the StrategyDataHandler with the base_dir
 strategy_data_handler = None
 
-
-
-# for sergey and easy users
-EASY_MODE = False
     
 def run():
     
     
     global strategy_name
     
-    if EASY_MODE:
-        strategy_name = "MATrailingStopLossStrategy"  # select_strategy()
-    else:
-        strategy_name = select_strategy()
+    # DEFUALT STRATEGY! YOU CAN SELECT IF YOU WISH! 
+    strategy_name = "MATrailingStopLossStrategy"  # select_strategy()
+    print(f"Using MATrailingStopLossStrategy")
+
         
     global strategy_data_handler 
     strategy_data_handler = StrategyDataHandler(strategy_name, base_dir)
@@ -464,14 +485,21 @@ def run():
         input("\n\nPress Enter to continue...")
 
     print("Exiting the Custom Orders Management System.")
-    print("LEAVING FreqTrade RUNNING! To stop it, use the 'Kill All Freqtrade' option, or restart the script!")
+    #print("LEAVING FreqTrade RUNNING! To stop it, use the 'Kill All Freqtrade' option, or restart the script!")
 
 
 import webbrowser
 # Ensure viertualenv is activated
 import subprocess
 
+from wifi_monitor import launch_monitor
+import multiprocessing
+
 if __name__ == "__main__":
+    # # monitor wifi
+    # monitor_process = multiprocessing.Process(target=launch_monitor)
+    # monitor_process.start()
+    
     # Setup command line argument parsing
     parser = argparse.ArgumentParser(
         description="Custom Orders Management System")
@@ -479,9 +507,9 @@ if __name__ == "__main__":
                         help='Enable automatic management of Freqtrade processes')
     args = parser.parse_args()
     
-    # Open frequi
-    url = "http://localhost:6970"
-    webbrowser.open(url)
+    # # Open frequi
+    # url = "http://localhost:6970"
+    # webbrowser.open(url)
 
     
 

@@ -59,6 +59,7 @@ def calculate_slope(y, window):
 
     return slope_padded
 
+
 class MAStopLossStrategy(FileLoadingStrategy):
     """
     Strategy that lets users choose between EMA and HMA for dynamic stop loss adjustment based on MA slope.

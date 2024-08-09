@@ -1,64 +1,28 @@
 
+from datetime import datetime, timedelta
 from datetime import datetime
 import json
+import logging
 import time
 from typing import Any, Dict, Optional
+
+from dateutil.relativedelta import relativedelta
+from dateutil import parser
+
 from freqtrade.persistence.trade_model import Order, Trade
 from freqtrade.strategy.interface import IStrategy
 from pandas import DataFrame
 import numpy as np
 import pandas_ta as pta
 
-
-from freqtrade.strategy.strategy_helper import stoploss_from_open
 from custom_order_form_handler import OrderStatus
 from file_loading_strategy import FileLoadingStrategy
 
+from dateutil import parser
 
-def calculate_slope(y, window):
-    """
-    Calculate the slope of a linear regression line for each point in a series.
-    The slope is calculated over a rolling window of size 'window' for the series 'y'.
-    This function uses vectorization for fast computation.
+from exit_strategy_manager import ExitStrategyManager
 
-    Args:
-    y (np.array): The y-values of the data series.
-    window (int): The number of points to consider for each linear regression calculation.
 
-    Returns:
-    np.array: An array of slope values.
-    """
-    # Ensure y is a numpy array for vectorized operations
-    y = np.asarray(y)
-
-    # The x values are the indices of y
-    x = np.arange(len(y))
-
-    # Expand x and y to have 'window' columns for vectorized operation
-    x_mat = np.lib.stride_tricks.sliding_window_view(x, window_shape=window)
-    y_mat = np.lib.stride_tricks.sliding_window_view(y, window_shape=window)
-
-    # Calculate means of x and y within the window
-    x_mean = np.mean(x_mat, axis=1)
-    y_mean = np.mean(y_mat, axis=1)
-
-    # Calculate the numerator and denominator of the slope formula
-    numerator = np.sum(
-        (x_mat - x_mean[:, None]) * (y_mat - y_mean[:, None]), axis=1)
-    denominator = np.sum((x_mat - x_mean[:, None]) ** 2, axis=1)
-
-    # Prevent division by zero
-    with np.errstate(divide='ignore', invalid='ignore'):
-        slope = np.true_divide(numerator, denominator)
-        # If denominator is zero, slope is zero (horizontal line)
-        slope[denominator == 0] = 0
-
-    # Pad the result with NaN for the length of the window
-    slope_padded = np.empty(len(y))
-    slope_padded[:] = np.NaN
-    slope_padded[window - 1:] = slope
-
-    return slope_padded
 
 class MATrailingStopLossStrategy(FileLoadingStrategy):
     """
@@ -70,27 +34,63 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
     stoploss = -1.0  # Default OFF
 
     use_exit_signal = True
-
+    # Schedule force exit in 3 minutes
+    
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         try:
+            # Ensure metadata contains the required keys
+            if 'pair' not in metadata:
+                raise KeyError("Metadata does not contain 'pair'.")
             pair = metadata['pair']
 
-            ma_type = self.get_dfile_arg(pair, 'ma_type')
-            ma_period = self.get_dfile_arg(pair, 'ma_period')
+            # CHECK IF PAIR HAS ACTIVE ORDER (WILL CHECK ALL PAIRS IN PAIRLIST)
+            if self.does_pair_have_active_order(pair):
+                # Ensure price column exists in dataframe
+                if 'close' not in dataframe.columns:
+                    raise KeyError(
+                        "Dataframe does not contain 'close' column.")
 
+                current_close = dataframe['close'].iloc[-1]
+                self.set_dfile_arg(pair, 'current_price', current_close)
 
-            # EMA Calculation
-            if ma_type.upper() == 'EMA':
-                dataframe['ma'] = pta.ema(dataframe['close'], length=ma_period)
-            # HMA Calculation
-            elif ma_type.upper() == 'HMA':
-                dataframe['ma'] = pta.hma(dataframe['close'], length=ma_period)
+                # Fetching values from self.get_dfile_arg
+                ma_type = self.get_dfile_arg(pair, 'ma_type')
+                ma_period = self.get_dfile_arg(pair, 'ma_period')
+
+                # Check if ma_type and ma_period are properly set
+                if ma_type is None or ma_period is None:
+                    return dataframe  # early exit
+
+                # EMA Calculation
+                if ma_type.upper() == 'EMA':
+                    dataframe['ma'] = pta.ema(
+                        dataframe['close'], length=ma_period)
+                # HMA Calculation
+                elif ma_type.upper() == 'HMA':
+                    dataframe['ma'] = pta.hma(
+                        dataframe['close'], length=ma_period)
+                else:
+                    raise ValueError(f"(MA_TYPE ERROR!) {ma_type.upper()} MUST BE EITHER 'HMA' OR 'EMA'")
+
+                # Ensure there are at least 30 MA values; otherwise, use available MA values
+                n = 100
+                last_n_ma = dataframe['ma'].iloc[-n:].tolist()
+                if len(last_n_ma) < n:
+                    logging.warning(f"Not enough data points for last_n_ma for pair {pair}. Using {len(last_n_ma)} data points.")
+
+                # Ensure last_n_ma is a list and contains floats
+                last_n_ma = [float(price) for price in last_n_ma]
+
+                # Write MA values to log file
+                self.set_dfile_arg(pair, 'prices', last_n_ma)
+
+            else:
+                pass
 
         except Exception as e:
-            #print(f"(MASlopeStrategy) No order data found: {e}")
-            return dataframe
-
+            print(
+                f"(ERROR!) MATrailingStopLossStrategy populate_indicators \nError: {e}\n")
 
         return dataframe
 
@@ -99,26 +99,34 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
         """
         Custom exit strategy that sets an exit signal based on a trailing stop loss which updates
         dynamically based on the moving average (MA) of the close price. It switches from a loose
-        to a tight trailing stop loss once a certain profit target is hit.
+        to a tight trailing stop loss once a certain profit target is hit. If tight_trailing_stop_loss is 0,
+        auto-sell is triggered when take profit is hit.
         """
         # Retrieve the dataframe with the 'ma' column already calculated
-        dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
+        dataframe, _ = self.dp.get_analyzed_dataframe(
+            pair=pair, timeframe=self.timeframe)
         last_candle = dataframe.iloc[-1].squeeze()
-        pct_diff = ((last_candle['ma'] - trade.open_rate) / trade.open_rate) * 100
+        price = last_candle['close']
+
+        # Continue ONLY if have order data!
+        if not self.does_pair_have_active_order(pair):
+            return
+
+        pct_diff = (
+            (last_candle['ma'] - trade.open_rate) / trade.open_rate) * 100
 
         # Retrieve strategy parameters from trade's custom_info or strategy configuration
-        tight_trailing_stop_loss = self.get_dfile_arg(pair, 'tight_trailing_stop_loss')
+        tight_trailing_stop_loss = self.get_dfile_arg(
+            pair, 'tight_trailing_stop_loss')
         loose_stop_loss = self.get_dfile_arg(pair, 'loose_stop_loss')
-        is_loose_stop_loss_trailing = self.get_dfile_arg(pair, 'is_loose_stop_loss_trailing')
+        is_loose_stop_loss_trailing = self.get_dfile_arg(
+            pair, 'is_loose_stop_loss_trailing')
         take_profit = self.get_dfile_arg(pair, 'take_profit')
         take_profit_hit = self.get_dfile_arg(pair, 'take_profit_hit')
         highest_ma = self.get_dfile_arg(pair, 'highest_ma')
-        
 
         if not highest_ma:
-            #print(f"(Highest MA not found): setting to last candle's MA {last_candle['ma']}")
             highest_ma = last_candle['ma']
-            
 
         # If current MA is higher than the recorded highest MA, update the highest MA
         if last_candle['ma'] >= highest_ma:
@@ -126,110 +134,163 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
             self.set_dfile_arg(pair, 'highest_ma', highest_ma)
 
         # Check if the take profit has been hit to switch to tight trailing stop loss
-        above_tp = current_profit > take_profit / 100
+        above_tp = (pct_diff) > take_profit
         if not take_profit_hit and above_tp:
             self.set_dfile_arg(pair, 'take_profit_hit', True)
 
+        
+
+
         # Calculate the trailing stop loss based on the highest MA
+        exit_reason = None
         if above_tp:
-            # activated tight trailing
-            tsl = highest_ma * (1 - tight_trailing_stop_loss / 100)
-
-            if current_rate < tsl:
-                return 'tight_trailing_stop_loss'
+            if tight_trailing_stop_loss == 0:
+                exit_reason = 'auto_sell_at_take_profit'
+            else:
+                tsl = highest_ma * (1 - tight_trailing_stop_loss / 100)
+                if current_rate < tsl:
+                    exit_reason = 'tight_trailing_stop_loss'
         else:
-            # below take_profit (loose activated still)
-
-            # V1 : LOOSE SL == trailing stop loss
             if is_loose_stop_loss_trailing:
                 tsl = highest_ma * (1 - loose_stop_loss / 100)
-
                 if current_rate < tsl:
-                    return 'loose_stop_loss_trailing'
+                    exit_reason = 'loose_stop_loss_trailing'
             else:
-            # V2: LOOSE SL == regular static stop loss
                 is_below_loose_stop_loss = pct_diff < -loose_stop_loss
                 if is_below_loose_stop_loss:
-                    return 'loose_stop_loss_static'
-    
+                    exit_reason = 'loose_stop_loss_static'
 
+        if exit_reason:
+            def write_exit_data_to_file():
+                self.set_dfile_arg(pair, 'exit_price', price)
+                # set profit %
+                entry_price = self.get_dfile_arg(pair, 'entry_price')
+                percentage_profit = ((price - entry_price) / entry_price) * 100
+                self.set_dfile_arg(pair, 'profit', percentage_profit)
+                
+                # set status to EXITED            
+                self.set_dfile_arg(pair,'status', OrderStatus.EXITED.value)
 
-    def input_strategy_data(self, pair: str, easy_mode:bool=False):
-        if easy_mode:
-            return self._default_input_strategy_data(pair)
+            write_exit_data_to_file()
+            
+            try:
+                # force exit (remove limit make market in n mins)
+                exit_manager = ExitStrategyManager(
+                    url='http://localhost:6970/api/v1',
+                    username='1',
+                    password='1'
+                )
+                print(f"POOOO REMOVE THE TIME TESTING")
+                exit_manager.schedule_force_exit(trade.id, wait_time=60*2) 
+            except Exception as e:
+                print(f"Failed to launch Limit->Market exiter proesss! :() Error: {e}")
+                
+            return exit_reason
 
-        ma_type = input("Choose between 'EMA' or 'HMA' for moving average type: ")
+    def input_strategy_data(self, pair: str):
+        ma_type = input(
+            "Choose between '(E)MA' or '(H)MA' for moving average type: ")
+        if 'H' in ma_type.upper():
+            ma_type = 'HMA'
+        elif 'E' in ma_type.upper():
+            ma_type = 'EMA'
+        else:
+            ma_type = 'input_error'
+
         ma_period = int(input("Enter the period for the moving average: "))
-
-
-        loose_stop_loss = float(
-            input("Initial (LOOSE) stop loss % (1 for -1%); this applies until your PROFIT-TARGET is hit: "))
+        loose_stop_loss = float(input(
+            "Initial (LOOSE) stop loss % (1 for -1%); this applies until your PROFIT-TARGET is hit: "))
         is_loose_stop_loss_trailing = input(
             "Is LOOSE stop loss (T)railing or (S)tatic? (T or S): ").upper() == 'T'
-        tight_trailing_stop_loss = float(
-            input("Secondary (TIGHT) trailing stop loss % (1 for -1%): "))
-        take_profit = float(
-            input("PROFIT-TARGET profit % to switch LOOSE TSL -> TIGHT TSL (1 for activation at 1% profit): "))
+        tight_trailing_stop_loss_str = input(
+            "Secondary (TIGHT) trailing stop loss % (1 for -1%) (leave EMPTY or 0 for auto-sell at take profit): ")
 
-        stake_amount = float(input("Enter the amount you wish to invest in this trade (leave blank for $10 default):  "))
-
-        order_data =  {
-            "ma_type": ma_type,
-            "ma_period": ma_period,
-
-            "take_profit": take_profit,
-            "take_profit_hit": False,  # default "off"
-            "highest_ma": 0,
-            "tight_trailing_stop_loss": tight_trailing_stop_loss,
-            "loose_stop_loss": loose_stop_loss,
-            "is_loose_stop_loss_trailing": is_loose_stop_loss_trailing,
-            "stake_amount": stake_amount,
-            }
-
-        print("\nPlease review your order details:")
-        print(json.dumps(order_data, indent=4))
-        confirmation = input(
-            "Type 'Y' to confirm and submit your order, anything else to cancel: ").upper()
-
-        if confirmation == 'Y':
-            self.order_handler.update_strategy_data(pair, order_data, OrderStatus.PENDING)
-            print("\nSubmitted order!")
-            print(json.dumps(order_data, indent=4))
+        if not tight_trailing_stop_loss_str:
+            tight_trailing_stop_loss = 100
+            take_profit = 100  # deactivated
         else:
-            print("\nCancelled placing order!")
+            tight_trailing_stop_loss = float(tight_trailing_stop_loss_str)
+            take_profit = float(input(
+                "PROFIT-TARGET profit % to switch LOOSE TSL -> TIGHT TSL (1 for activation at 1% profit): "))
 
-        time.sleep(3)
-
-
-        self.order_handler.update_strategy_data(pair,order_data, OrderStatus.PENDING)
-        
-    def _default_input_strategy_data(self, pair: str):
-
-        ma_type = 'HMA'
-        ma_period = 5
-
-        loose_stop_loss = float(
-            input("(🏁 Initial Stop Loss)\n\tEnter the initial stop loss percentage (e.g., enter 1 for -1%). This stop loss will remain active until your profit target is reached: "))
-        is_loose_stop_loss_trailing = input("Is LOOSE stop loss (T)railing or (S)tatic? (T or S): ").upper() == 'T'
-        tight_trailing_stop_loss = float(
-            input("(⚠️ Secondary Stop Loss)\n\tEnter the secondary tighter stop loss percentage (e.g., enter 1 for -1%): "))
-        take_profit = float(
-            input("(🎯 Profit Target for Stop Loss Switch)\n\tEnter the profit percentage at which you want to switch from the initial flexible stop loss to the tighter stop loss (e.g., enter 1 for 1% profit): "))
+        # Assertions to ensure valid input values
+        assert take_profit > 0, "Take profit must be greater than 0."
+        assert 0 <= loose_stop_loss < 10, "Loose stop loss must be between 0 and 10%."
+        assert (0 <= tight_trailing_stop_loss < 10) or (tight_trailing_stop_loss ==
+                                                        100), "Tight trailing stop loss must be between 0 and 10% (or deactivated == 100%)."
 
         stake_amount = float(input(
-            "(💰 Investment Amount)\n\tEnter the amount you wish to invest in this trade: "))
+            "Enter the amount you wish to invest in this trade (leave blank for $10 default): "))
+
+        use_entry_condition = input(
+            "Use entry condition? (leave EMPTY for NONE): ")
+        if use_entry_condition:
+            print("Select entry condition type:")
+            print("1: Price Crosses Upward Condition")
+            print("2: Price Under Condition")
+            print("3: Price Reverses Up Condition")
+
+            # Get the user's choice
+            condition_choice_int = input(
+                "Enter the number of the entry condition: ").strip()
+
+            # Map each int 1,2,3... to condition string name
+            condition_mapping = {
+                "1": "PriceCrossesUpwardCondition",
+                "2": "PriceUnderCondition",
+                "3": "PriceReversesUpCondition"
+            }
+
+            # Get the corresponding condition string name
+            condition_choice = condition_mapping.get(condition_choice_int)
+
+            # Specific parameters for different entry conditions
+            if condition_choice in ['PriceCrossesUpwardCondition', 'PriceUnderCondition']:
+                entry_condition_price = float(
+                    input("Enter the target price for activation: "))
+            else:
+                entry_condition_price = None
+
+            if condition_choice == 'PriceReversesUpCondition':
+                threshold_pct_str = input(
+                    "Enter % price reverses before activation (default=0.15): ")
+                threshold_pct = float(
+                    threshold_pct_str) if threshold_pct_str else 0.15
+
+            timeout_minutes = int(input(
+                "Enter the number of minutes for the entry condition timeout (e.g., 150 for 2.5 hours): "))
+            timeout = datetime.now() + timedelta(minutes=timeout_minutes)
+
+            order_status = OrderStatus.WAITING
+
+        else:
+            order_status = OrderStatus.PENDING
+            entry_condition_price = None
+            timeout = None
 
         order_data = {
+            "status": order_status.value,
+            "created_at": datetime.now().isoformat(),
+            "stake_amount": stake_amount,
             "ma_type": ma_type,
             "ma_period": ma_period,
-
-            "take_profit": take_profit,
-            "take_profit_hit": False,  # default "off"
-            "highest_ma": 0,
-            "tight_trailing_stop_loss": tight_trailing_stop_loss,
             "loose_stop_loss": loose_stop_loss,
             "is_loose_stop_loss_trailing": is_loose_stop_loss_trailing,
-            "stake_amount": stake_amount
+            "tight_trailing_stop_loss": tight_trailing_stop_loss,
+            "take_profit": take_profit,
+            "take_profit_hit": False,
+            "highest_ma": 0,
+            "entry_condition": condition_choice if use_entry_condition else None,
+            "entry_condition_timeout": timeout.isoformat() if timeout else None,
+            "entry_condition_price": entry_condition_price if use_entry_condition else None,
+            # FOR REVERSE DIRECTION ENTRY CONDITION
+            "threshold_pct": threshold_pct if (use_entry_condition and (condition_choice == 'PriceReversesUpCondition')) else None,
+            "current_price": 0,
+            "prices": [],
+            # for keeping track of profit
+            "entry_price": 0,
+            "exit_price": 0,
+            "profit": 0,
         }
 
         print("\nPlease review your order details:")
@@ -238,8 +299,7 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
             "Type 'Y' to confirm and submit your order, anything else to cancel: ").upper()
 
         if confirmation == 'Y':
-            self.order_handler.update_strategy_data(
-                pair, order_data, OrderStatus.PENDING)
+            self.order_handler.update_strategy_data(pair, order_data)
             print("\nSubmitted order!")
             print(json.dumps(order_data, indent=4))
         else:
@@ -247,23 +307,24 @@ class MATrailingStopLossStrategy(FileLoadingStrategy):
 
         time.sleep(3)
 
-        self.order_handler.update_strategy_data(
-            pair, order_data, OrderStatus.PENDING)
+    # Update set_entry_signal method to include all variables in the string
 
     def set_entry_signal(self, pair: str, dataframe: DataFrame, data: Dict[str, Any]):
         try:
-            # get all from self.get_dfile_arg(pair,...)
             ma_type = self.get_dfile_arg(pair, 'ma_type')
             ma_period = self.get_dfile_arg(pair, 'ma_period')
             loose_stop_loss = self.get_dfile_arg(pair, 'loose_stop_loss')
-            tight_trailing_stop_loss = self.get_dfile_arg(pair, 'tight_trailing_stop_loss')
+            is_loose_stop_loss_trailing = self.get_dfile_arg(
+                pair, 'is_loose_stop_loss_trailing')
+            tight_trailing_stop_loss = self.get_dfile_arg(
+                pair, 'tight_trailing_stop_loss')
             take_profit = self.get_dfile_arg(pair, 'take_profit')
             stake_amount = self.get_dfile_arg(pair, 'stake_amount')
-            is_loose_stop_loss_trailing = self.get_dfile_arg(pair, 'is_loose_stop_loss_trailing')
+            entry_condition = self.get_dfile_arg(pair, 'entry_condition')
 
             dataframe.loc[dataframe.index[-1], ['enter_long', 'enter_tag']] = (
                 1,
-                f"(MATrailingStopLossStrategy) ma_type={ma_type}, ma_period={ma_period}, is_loose_stop_loss_trailing={is_loose_stop_loss_trailing}, loose_stop_loss={loose_stop_loss}, tight_trailing_stop_loss={tight_trailing_stop_loss}, take_profit={take_profit}, stake_amount={stake_amount}"
+                f"(MATrailingStopLossStrategy) ma_type={ma_type} ma_period={ma_period} is_loose_stop_loss_trailing={is_loose_stop_loss_trailing} loose_stop_loss={loose_stop_loss} tight_trailing_stop_loss={tight_trailing_stop_loss} take_profit={take_profit} stake_amount={stake_amount} entry_condition={entry_condition}"
             )
         except Exception as e:
             print(f"Error: set_entry_signal: {e}")

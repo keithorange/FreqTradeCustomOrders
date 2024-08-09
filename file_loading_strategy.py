@@ -1,123 +1,182 @@
-import json
-import os
 from datetime import datetime
+import json
+import time
 from typing import Any, Dict, Optional
-
-from pandas import DataFrame
-from custom_order_form_handler import OrderStatus, StrategyDataHandler
+from freqtrade.persistence.trade_model import Order, Trade
 from freqtrade.strategy.interface import IStrategy
-
+from pandas import DataFrame
+import numpy as np
+import pandas_ta as pta
+from custom_order_form_handler import OrderStatus, StrategyDataHandler, ACTIVE_ORDER_STATUSES_VALUES
+from entry_conditions import price_crosses_upward, price_reverses_up, price_under
+from dateutil import parser
+import threading
+import logging
 
 
 class FileLoadingStrategy(IStrategy):
-    
-    # default parameters
+    """
+    Strategy class that reads order details from a file and sets strategy variables accordingly.
+    """
+
+    # Default parameters
     stoploss = -1.0
 
     def __init__(self, config) -> None:
+        """
+        Initialize the strategy with the given configuration.
+        """
         super().__init__(config)
+        self.strategy_name = self.__class__.__name__
+        self.order_handler = StrategyDataHandler(
+            strategy_name=self.strategy_name)
+        self.monitoring_initialized = False
         
-        strategy_name = self.__class__.__name__
-        self.strategy_name = strategy_name
-        self.order_handler = StrategyDataHandler(strategy_name=strategy_name)
-      
-
-        
-    # HANDLES ARGUMENT INPUTTING FROM FILE DATA HANDLER
     def input_strategy_data(self, pair: str):
-        # Implementation will vary based on strategy
+        """
+        Placeholder method for handling argument input from file data handler.
+        Implementation will vary based on specific strategy.
+        """
         raise NotImplementedError
-    
+
     def set_entry_signal(self, pair: str, dataframe: DataFrame, data: Dict[str, Any]):
-        # Implementation will vary based on strategy
+        """
+        Placeholder method for setting entry signal.
+        Implementation will vary based on specific strategy.
+        """
         raise NotImplementedError
 
-    
-    def get_file_data(self, pair) -> (Dict[str, Any], OrderStatus): # type: ignore
-        #print(f"self.args = {self.args}")
-        if pair in self.args:
-            d = self.args[pair] 
-            #print(f"\n\tget_file_data: {d}\n")
-            return d['data'], d['status']
-        else:
-            #print(f"\n\tget_file_data: {pair} not in {self.args}\n")
-            return {}, None
-        
+    def does_pair_have_data(self, pair) -> bool:
+        data = self.order_handler.read_strategy_data()
+        return pair in data
 
-    def get_dfile_arg(self, pair, key, ):
-        data, status = self.get_file_data(pair)
-        #print(f" Pair: {pair} Key: {key} Data: {data} Status: {status}")
-        
-        if key in data:    
+    def get_pair_data(self, pair) -> Dict[str, Any]:
+        if not self.does_pair_have_data(pair):
+            raise LookupError(f"{pair} doesn't have data yet!")
+        return self.order_handler.read_strategy_data()[pair]
+
+    def does_pair_have_active_order(self, pair) -> bool:
+        if self.does_pair_have_data(pair):
+            data = self.get_pair_data(pair)
+            if data['status'] in ACTIVE_ORDER_STATUSES_VALUES:
+                return True
+        return False
+
+    def get_dfile_arg(self, pair, key):
+        data = self.get_pair_data(pair)
+        if key in data:
             return data[key]
-        else:
-            print(f'ValueError(Key {key} not found in {data}')
-            return None
-    
+        return None
 
     def set_dfile_arg(self, pair, key, value):
-        # get fresh args
-        self.args = self.order_handler.read_strategy_data()
+        data = self.order_handler.read_strategy_data()
+        if not self.does_pair_have_data(pair):
+            data[pair] = {}
+        data[pair][key] = value
+        
 
-        # Check if the pair exists in self.args
-        if pair not in self.args:
-            self.args[pair] = {"data": {}}
-
-        # Check if the "data" key exists for the pair
-        if "data" not in self.args[pair]:
-            self.args[pair]["data"] = {}
-
-        # Set the value for the given key
-        self.args[pair]["data"][key] = value
-
-        # Save the updated strategy data
-        #print(f'SAVING STRATEGY DATA: {self.args[pair]["data"]}')
-        self.order_handler.save_strategy_data(self.args)
-
-
+        self.order_handler.save_strategy_data(data)
 
     def bot_loop_start(self, current_time: datetime, **kwargs) -> None:
-        """
-        Called at the start of the bot iteration (one loop).
-        Used to read order details from a file and set strategy variables accordingly.
-        """
-        # if self.config['runmode'].value in ('live', 'dry_run'):
-            
-        #     # Read and parse the JSON content
-            
-        self.args = self.order_handler.read_strategy_data()
-                       
+        if not self.monitoring_initialized:
+            self.start_monitoring()
+            self.monitoring_initialized = True
+
+    def start_monitoring(self):
+        monitor_thread = threading.Thread(target=self.monitor_entry_conditions)
+        monitor_thread.start()
+
+    # Ensure last_prices is a list in monitor_entry_conditions
+
+
+    def monitor_entry_conditions(self):
+        while True:
+            strategy_data = self.order_handler.read_strategy_data()
+
+            for pair, data in strategy_data.items():
+                if data['status'] == OrderStatus.WAITING.value:
+                    condition_type = data['entry_condition']
+                    entry_condition_timeout = data['entry_condition_timeout']
+                    entry_condition_price = data.get('entry_condition_price')
+                    threshold_pct = data.get('threshold_pct', 0.15)
+                    ma_type = data.get('ma_type', 'EMA')
+                    period = data.get('period', 14)
+
+                    # USING EMA/HMA NOT CLOSE!
+                    last_prices = data.get('prices', [])
+                    
+                    # Check if prices is a LIST filled with price data!
+                    if not isinstance(last_prices, list) or len(last_prices) < 10 or not all(isinstance(price, (int, float)) for price in last_prices):
+                        logging.error(f"Invalid data type or insufficient data in last_prices: {type(last_prices)} for {pair}")
+                        continue
+
+
+                    # Check the condition
+                    if condition_type == 'PriceReversesUpCondition':
+                        is_satisfied = price_reverses_up(
+                            last_prices=last_prices,
+                            period=period,
+                            threshold_pct=threshold_pct,
+                        )
+                    elif condition_type == 'PriceCrossesUpwardCondition':
+                        if not entry_condition_price:
+                            logging.error(f"Missing entry_condition_price for pair {pair}: {data}")
+                            continue
+                        is_satisfied = price_crosses_upward(
+                            entry_condition_price,
+                            last_prices=last_prices
+                        )
+                    elif condition_type == 'PriceUnderCondition':
+                        if not entry_condition_price:
+                            logging.error(f"Missing entry_condition_price for pair {pair}: {data}")
+                            continue
+                        is_satisfied = price_under(
+                            entry_condition_price,
+                            last_prices=last_prices
+                        )
+                    else:
+                        logging.error(f"Invalid condition type for pair {pair}: {data}")
+                        continue
+                    
+                    if is_satisfied:
+                        data['status'] = OrderStatus.PENDING.value
+
+                    if entry_condition_timeout and datetime.now() >= parser.parse(entry_condition_timeout):
+                        data['status'] = OrderStatus.CANCELED.value
+
+                    self.order_handler.update_strategy_data(pair, data)
+
+                # SLEEP 2x per min!
+            time.sleep(31)
+
+
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         pair = metadata['pair']
+        last_candle = dataframe.iloc[-1].squeeze()
+        price = last_candle['close']
+
+        
         strategy_data = self.order_handler.read_strategy_data()
 
-        # # log
-        # print(f"Strategy Data: {strategy_data}")
-        # if pair in strategy_data:
-        #     print(f"Strategy Data for {pair}: {strategy_data[pair]}")
-        # else:
-        #     print(f"Strategy Data for {pair} not found")
-
-        # Pending buy order , place order
+        # only enter if PENDING pair!
         if pair in strategy_data and strategy_data[pair]['status'] == OrderStatus.PENDING.value:
-            self.set_entry_signal(pair, dataframe, strategy_data[pair]['data'])
-            self.order_handler.update_strategy_data(pair, strategy_data[pair]['data'], OrderStatus.HOLDING)
+            # Enter trade freqtrade bot
+            self.set_entry_signal(pair, dataframe, strategy_data[pair])
+            
+            # write variabels to saved log
+            strategy_data[pair]['status'] = OrderStatus.HOLDING.value
+            strategy_data[pair]['entry_price'] = price
+            
+            # write to file
+            self.order_handler.update_strategy_data(pair, strategy_data[pair])
+            
         else:
             self.set_no_entry(dataframe)
-            
+
         return dataframe
 
-    def confirm_trade_exit(self, pair: str, trade, order_type: str, amount: float,rate: float, time_in_force: str, exit_reason: str,current_time: datetime, **kwargs) -> bool:
-        # if exit_reason not in ['roi', 'stop_loss', 'emergency_exit']:
-        #     return False
 
-        # Write Flag to file
-        strategy_data = self.order_handler.read_strategy_data()
-        self.order_handler.update_strategy_data(pair, strategy_data[pair]['data'], OrderStatus.EXITED)
-        return True
-    
-    # No customization
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         return dataframe
 
@@ -132,14 +191,10 @@ class FileLoadingStrategy(IStrategy):
         dataframe.loc[dataframe.index[-1],
                       ['exit_long', 'exit_tag']] = (0, "no_exit")
 
-    # Load $$$ stake amount from file
-    def custom_stake_amount(self, pair: str, current_time: datetime, current_rate: float,proposed_stake: float, min_stake: Optional[float], max_stake: float,leverage: float, entry_tag: Optional[str], side: str,**kwargs) -> float:
-
-        default_stake = 10 # 10$ if no stake is found
+    def custom_stake_amount(self, pair: str, current_time: datetime, current_rate: float, proposed_stake: float, min_stake: Optional[float], max_stake: float, leverage: float, entry_tag: Optional[str], side: str, **kwargs) -> float:
+        default_stake = 10  # $10 if no stake is found
         try:
             return self.get_dfile_arg(pair, 'stake_amount')
-
         except ValueError as e:
             print(f"Error: {e}")
-
         return default_stake
